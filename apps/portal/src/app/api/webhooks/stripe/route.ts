@@ -33,13 +33,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (error) {
     console.error('Error in webhook route:', error);
 
-    // IMPORTANT: Return 200 to acknowledge receipt even on processing errors.
-    // Stripe interprets 4xx/5xx as delivery failure and will retry the event
-    // indefinitely (up to 3 days), which can cause duplicate processing and
-    // unnecessary load. The error has already been logged for investigation.
+    // Bad signature: retrying will never help — reject with 400.
+    if (
+      error instanceof Error &&
+      error.message === 'Invalid webhook signature'
+    ) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+    }
+
+    // IMPORTANT: Return 5xx on processing errors so Stripe REDELIVERS the
+    // event (retries with backoff for up to 3 days). Every handler is
+    // idempotent (unique invoiceId constraint, status-guarded updates), so
+    // replays are safe — whereas acking 200 on a failed DB transition would
+    // silently drop a paid customer with no retry and no signal.
     return NextResponse.json(
-      { error: 'Webhook handler failed', received: true },
-      { status: 200 }
+      { error: 'Webhook handler failed' },
+      { status: 500 }
     );
   }
 }

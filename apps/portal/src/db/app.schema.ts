@@ -1,7 +1,7 @@
 import { boolean, integer, pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 import { user } from "./auth.schema";
 import type { PaymentScene, PaymentStatus, PaymentType, PlanInterval } from "@/payment/types";
-import type { StoreStatus } from "@/lib/store-status";
+import type { StoreStatus, SuspensionReason } from "@/lib/store-status";
 
 export const payment = pgTable("payment", {
 	id: text("id").primaryKey(),
@@ -53,6 +53,8 @@ export const stores = pgTable("stores", {
 	stripeCustomerId: text('stripe_customer_id'),
 	subscriptionId: text('subscription_id'), // Stripe subscription ($99/mo)
 	setupPaymentId: text('setup_payment_id'), // Stripe invoice covering the $688 setup fee (first invoice of the subscription)
+	checkoutSessionId: text('checkout_session_id'), // Stripe Checkout session currently allowed to provision this row; superseded sessions are expired and must not provision
+	suspensionReason: text('suspension_reason').$type<SuspensionReason>(), // why the store is suspended: 'dunning' | 'sub_deleted' | 'manual'; only 'dunning' may be auto-restored by invoice.paid
 	videoR2Key: text('video_r2_key'), // R2 object key of the uploaded layout video (task #6)
 	videoExternalUrl: text('video_external_url'), // escape hatch: external drive link instead of upload (task #6)
 	paymentFailedAt: timestamp('payment_failed_at'), // first invoice.payment_failed timestamp; suspended after 7 days

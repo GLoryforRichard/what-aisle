@@ -8,7 +8,7 @@ import { userActionClient } from '@/lib/safe-action';
 import { slugify, validateSlug } from '@/lib/slug';
 import { PENDING_PAYMENT_TTL_MS, STORE_STATUS } from '@/lib/store-status';
 import { getUrlWithLocale } from '@/lib/urls';
-import { createCheckout } from '@/payment';
+import { createCheckout, expireCheckout } from '@/payment';
 import { PaymentTypes } from '@/payment/types';
 import { Routes } from '@/routes';
 import { and, eq } from 'drizzle-orm';
@@ -21,6 +21,13 @@ const createStoreCheckoutSchema = z.object({
 
 const SLUG_TAKEN_ERROR =
   'This store name was just taken, please try another one';
+
+/**
+ * Checkout sessions must die BEFORE the 24h pending_payment row TTL,
+ * otherwise a superseded session could still be paid after the row was
+ * taken over. Stripe allows expires_at between 30min and 24h.
+ */
+const CHECKOUT_SESSION_TTL_MS = 23 * 60 * 60 * 1000;
 
 /**
  * Start the What-Aisle checkout for a store (PRD F-3):
@@ -62,6 +69,7 @@ export const createStoreCheckoutAction = userActionClient
     const db = await getDb();
     const now = new Date();
     let createdFreshRow = false;
+    let storeRowId: string;
 
     try {
       // Lock the slug with a pending_payment row
@@ -82,8 +90,28 @@ export const createStoreCheckoutAction = userActionClient
         const isCanceled = row.status === STORE_STATUS.CANCELED;
 
         if (isStalePending || isCanceled || isOwnPending) {
+          // Kill the superseded Checkout session BEFORE creating a new
+          // one, so the old link can no longer be paid. Best-effort: the
+          // session↔row correlation in the webhook guards provisioning
+          // even if this fails.
+          if (row.checkoutSessionId) {
+            try {
+              await expireCheckout(row.checkoutSessionId);
+            } catch (error) {
+              console.error(
+                `failed to expire superseded checkout session ${row.checkoutSessionId} for slug '${slug}':`,
+                error
+              );
+            }
+          }
+
           // Take over the released/own row (keeps the unique constraint
-          // as the race guard instead of delete+insert)
+          // as the race guard instead of delete+insert). The updatedAt
+          // equality check is the optimistic lock: status alone is a
+          // no-op guard for pending→pending takeovers, so two concurrent
+          // claimants would otherwise both "win". updatedAt is always
+          // set to a fresh `new Date()` here, so exactly one concurrent
+          // UPDATE can match the previously-read value.
           const updated = await db
             .update(stores)
             .set({
@@ -93,6 +121,8 @@ export const createStoreCheckoutAction = userActionClient
               stripeCustomerId: null,
               subscriptionId: null,
               setupPaymentId: null,
+              checkoutSessionId: null,
+              suspensionReason: null,
               paymentFailedAt: null,
               liveAt: null,
               suspendedAt: null,
@@ -100,19 +130,28 @@ export const createStoreCheckoutAction = userActionClient
               createdAt: now,
               updatedAt: now,
             })
-            .where(and(eq(stores.id, row.id), eq(stores.status, row.status)))
+            .where(
+              and(
+                eq(stores.id, row.id),
+                eq(stores.status, row.status),
+                eq(stores.updatedAt, row.updatedAt)
+              )
+            )
             .returning({ id: stores.id });
           if (updated.length === 0) {
-            // Someone else transitioned the row in between
+            // Someone else claimed the row in between (the optimistic
+            // lock lost) — only the winning writer proceeds.
             return { success: false, error: SLUG_TAKEN_ERROR };
           }
+          storeRowId = row.id;
         } else {
           return { success: false, error: SLUG_TAKEN_ERROR };
         }
       } else {
         try {
+          storeRowId = randomUUID();
           await db.insert(stores).values({
-            id: randomUUID(),
+            id: storeRowId,
             userId: currentUser.id,
             slug,
             name: storeName,
@@ -157,7 +196,38 @@ export const createStoreCheckoutAction = userActionClient
         successUrl,
         cancelUrl,
         locale,
+        // Sessions die before the 24h pending row TTL, so a superseded
+        // session can never outlive the slug lock it belongs to.
+        expiresAt: new Date(Date.now() + CHECKOUT_SESSION_TTL_MS),
       });
+
+      // Correlate the session with the row: only THIS session may
+      // provision the row (checked in onStoreCheckoutCompleted), and
+      // only THIS session's expiry may release it.
+      const linked = await db
+        .update(stores)
+        .set({ checkoutSessionId: result.id, updatedAt: new Date() })
+        .where(
+          and(
+            eq(stores.id, storeRowId),
+            eq(stores.status, STORE_STATUS.PENDING_PAYMENT),
+            eq(stores.userId, currentUser.id)
+          )
+        )
+        .returning({ id: stores.id });
+      if (linked.length === 0) {
+        // The row was taken over while we were creating the session —
+        // kill the now-orphaned session and give the friendly error.
+        try {
+          await expireCheckout(result.id);
+        } catch (error) {
+          console.error(
+            `failed to expire orphaned checkout session ${result.id}:`,
+            error
+          );
+        }
+        return { success: false, error: SLUG_TAKEN_ERROR };
+      }
 
       return {
         success: true,

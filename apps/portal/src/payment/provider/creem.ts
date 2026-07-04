@@ -228,6 +228,17 @@ export class CreemProvider implements PaymentProvider {
     }
   }
 
+  /**
+   * Expire an open checkout session.
+   * Creem checkouts expire on their own; there is no public expire API,
+   * so this is a logged no-op to satisfy the provider interface.
+   */
+  public async expireCheckout(sessionId: string): Promise<void> {
+    console.warn(
+      `Creem provider: expireCheckout is a no-op (session ${sessionId})`
+    );
+  }
+
   // ─── Customer Portal ──────────────────────────────────────
 
   /**

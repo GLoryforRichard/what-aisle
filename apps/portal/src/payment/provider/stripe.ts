@@ -206,6 +206,7 @@ export class StripeProvider implements PaymentProvider {
       cancelUrl,
       metadata,
       locale,
+      expiresAt,
     } = params;
 
     try {
@@ -283,6 +284,13 @@ export class StripeProvider implements PaymentProvider {
 
       // Add customer to checkout session
       checkoutParams.customer = customerId;
+
+      // Custom session expiry (Stripe allows 30min–24h from creation);
+      // used by the store checkout so superseded sessions die before
+      // the 24h pending_payment row TTL.
+      if (expiresAt) {
+        checkoutParams.expires_at = Math.floor(expiresAt.getTime() / 1000);
+      }
 
       // Add locale if provided
       if (locale) {
@@ -430,6 +438,30 @@ export class StripeProvider implements PaymentProvider {
   }
 
   /**
+   * Expire an open checkout session so it can no longer be paid.
+   * Already-expired/completed sessions are treated as success —
+   * Stripe rejects expiring a session that is not 'open' with an
+   * invalid_request_error, which we swallow.
+   * @param sessionId Checkout session id
+   */
+  public async expireCheckout(sessionId: string): Promise<void> {
+    try {
+      await this.stripe.checkout.sessions.expire(sessionId);
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeInvalidRequestError) {
+        // Session is already expired or completed — nothing to do
+        console.log(
+          `Checkout session ${sessionId} not open, skip expiring:`,
+          error.message
+        );
+        return;
+      }
+      console.error('Expire checkout session error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Create a customer portal session
    * @param params Parameters for creating the portal
    * @returns Portal result
@@ -468,13 +500,21 @@ export class StripeProvider implements PaymentProvider {
     payload: string,
     signature: string
   ): Promise<void> {
+    // Verify the event signature; a bad signature is a 4xx-class error
+    // (retrying will not help), so surface it distinctly.
+    let event: Stripe.Event;
     try {
-      // Verify the event signature if webhook secret is available
-      const event = this.stripe.webhooks.constructEvent(
+      event = this.stripe.webhooks.constructEvent(
         payload,
         signature,
         this.webhookSecret
       );
+    } catch (error) {
+      console.error('webhook signature verification failed:', error);
+      throw new Error('Invalid webhook signature');
+    }
+
+    try {
       const eventType = event.type;
       console.log(`handle webhook event, type: ${eventType}`);
 
@@ -535,7 +575,10 @@ export class StripeProvider implements PaymentProvider {
       }
     } catch (error) {
       console.error('handle webhook event error:', error);
-      throw new Error('Failed to handle webhook event');
+      // Rethrow the ORIGINAL error so the webhook route returns 5xx and
+      // Stripe redelivers the event. Every handler is idempotent, so a
+      // replay after a transient failure is safe.
+      throw error;
     }
   }
 

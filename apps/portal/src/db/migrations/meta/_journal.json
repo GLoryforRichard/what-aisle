@@ -71,6 +71,13 @@
       "when": 1783139201831,
       "tag": "0009_mushy_marten_broadcloak",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783155431662,
+      "tag": "0010_boring_shriek",
+      "breakpoints": true
     }
   ]
 }

@@ -65,6 +65,16 @@ export const createCreditCheckout = async (
 };
 
 /**
+ * Expire an open checkout session so it can no longer be paid.
+ * No-op when the session is already expired or completed.
+ * @param sessionId Checkout session id
+ */
+export const expireCheckout = async (sessionId: string): Promise<void> => {
+  const provider = getPaymentProvider();
+  await provider.expireCheckout(sessionId);
+};
+
+/**
  * Create a customer portal session
  * @param params Parameters for creating the portal
  * @returns Portal result

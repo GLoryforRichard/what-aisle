@@ -154,6 +154,7 @@ export interface CreateCheckoutParams {
   metadata?: Record<string, string>;
   locale?: Locale;
   setupFeePriceId?: string;          // Optional override for the plan-level setup fee price (one-time line item added to a subscription checkout)
+  expiresAt?: Date;                  // Absolute expiry of the checkout session (Stripe allows 30min–24h from creation)
 }
 
 /**
@@ -211,6 +212,13 @@ export interface PaymentProvider {
    * Create a customer portal session
    */
   createCustomerPortal(params: CreatePortalParams): Promise<PortalResult>;
+
+  /**
+   * Expire an open checkout session so it can no longer be paid.
+   * Must be a no-op (not an error) when the session is already
+   * expired or completed.
+   */
+  expireCheckout(sessionId: string): Promise<void>;
 
   /**
    * Handle webhook events

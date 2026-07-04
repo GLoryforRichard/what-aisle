@@ -165,7 +165,7 @@ export default function StoreDetailClient({ store }: { store: StoreDetailDto }) 
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <a
-            href={`https://${store.slug}.what-aisle.com`}
+            href={`https://${store.slug}.whataisle.com`}
             target="_blank"
             rel="noreferrer"
             style={{ fontSize: 13, fontWeight: 700, color: C.primaryDark }}

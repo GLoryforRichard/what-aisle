@@ -44,7 +44,7 @@ const STEPPER_STATUSES: StoreStatus[] = [
 ];
 
 function getStoreBaseDomain(): string {
-  return process.env.NEXT_PUBLIC_STORE_BASE_DOMAIN || 'what-aisle.com';
+  return process.env.NEXT_PUBLIC_STORE_BASE_DOMAIN || 'whataisle.com';
 }
 
 export default async function StoreDashboardPage() {

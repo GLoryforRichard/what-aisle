@@ -47,7 +47,7 @@ export const payment = pgTable("payment", {
 export const stores = pgTable("stores", {
 	id: text("id").primaryKey(),
 	userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-	slug: text('slug').notNull().unique(), // subdomain: {slug}.what-aisle.com, immutable once live
+	slug: text('slug').notNull().unique(), // subdomain: {slug}.whataisle.com, immutable once live
 	name: text('name').notNull(), // display name of the supermarket
 	status: text('status').notNull().default('pending_payment').$type<StoreStatus>(),
 	stripeCustomerId: text('stripe_customer_id'),

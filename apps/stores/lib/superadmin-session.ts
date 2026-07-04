@@ -6,7 +6,7 @@
  * HttpOnly cookie. The cookie payload {t:'super'} is disjoint from the staff
  * cookie's {t:'admin', slug, pcv} — neither can ever verify as the other.
  *
- * Superadmin pages run on superadmin.what-aisle.com with NO tenant context,
+ * Superadmin pages run on superadmin.whataisle.com with NO tenant context,
  * so /api/superadmin/* routes are guarded by THIS cookie, never `wa_admin`.
  * (Production adds Caddy basic_auth in front as the second layer.)
  */

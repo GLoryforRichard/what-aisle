@@ -14,17 +14,17 @@
 
 ```
 Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
-   A  what-aisle.com    → VM_IP
-   A  *.what-aisle.com   → VM_IP
+   A  whataisle.com    → VM_IP
+   A  *.whataisle.com   → VM_IP
                 │
    ┌────────────▼─────────────────────────────┐
    │ GCP VM: whataisle-vm (e2-standard-2, 8GB) │
    │ region northamerica-northeast2, Ubuntu 22 │
    │                                            │
    │ Caddy（xcaddy 定制，含 caddy-dns/cloudflare）│
-   │   what-aisle.com, www → :3002  Portal      │  ← pnpm, Postgres/Neon
+   │   whataisle.com, www → :3002  Portal      │  ← pnpm, Postgres/Neon
    │   superadmin.…  basic_auth → :3001 Stores  │  ← npm,  MongoDB Atlas
-   │   *.what-aisle.com → :3001  Stores         │
+   │   *.whataisle.com → :3001  Stores         │
    │   每个 vhost：/api/internal/* 公网 403      │
    │                                            │
    │ PM2: wa-portal(:3002), wa-stores(:3001)    │
@@ -34,8 +34,8 @@ Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
      Stripe / Resend / R2   Vertex AI Gemini（VM ADC）
 ```
 
-- **Portal**（`apps/portal`，源自 mksaas）：营销页 + 注册 + Stripe 收费 + 店主后台，服务 `what-aisle.com`，**端口 3002**，包管理器 **pnpm**。
-- **Stores**（`apps/stores`，源自 wherebear 多租户版）：顾客搜索 + 店铺管理 + superadmin 建店台，服务 `*.what-aisle.com` 与 `superadmin.what-aisle.com`，**端口 3001**，包管理器 **npm**。
+- **Portal**（`apps/portal`，源自 mksaas）：营销页 + 注册 + Stripe 收费 + 店主后台，服务 `whataisle.com`，**端口 3002**，包管理器 **pnpm**。
+- **Stores**（`apps/stores`，源自 wherebear 多租户版）：顾客搜索 + 店铺管理 + superadmin 建店台，服务 `*.whataisle.com` 与 `superadmin.whataisle.com`，**端口 3001**，包管理器 **npm**。
 - 两应用通过 **127.0.0.1 回环 + 共享 `INTERNAL_API_SECRET`（Bearer）** 互调；`/api/internal/*` 在 Caddy 每个公网 vhost 一律 403。
 
 > **代码 vs PRD 差异**（见文末《差异清单》）：`apps/portal/env.example` 里 cron 示例误写 `:3000`；实际 Portal 跑在 `:3002`。本 runbook 已按代码/PRD 的 **3002** 修正。
@@ -47,7 +47,7 @@ Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
 开始前请确认你**已拥有或将创建**以下账户/资产。逐项打勾。
 
 - [ ] `【需要用户】` **GCP 项目 + 结算/免费积分**（新项目，专供 What-Aisle；不要复用 wherebear 的 `acoustic-cargo-498500-q3`，PRD §6.2-#8 明确用新 VM）。
-- [ ] `【需要用户】` **域名 `what-aisle.com`**（PRD 说已注册）——需要能在注册商处**改 NS 指向 Cloudflare**。
+- [ ] `【需要用户】` **域名 `whataisle.com`**（PRD 说已注册）——需要能在注册商处**改 NS 指向 Cloudflare**。
 - [ ] `【需要用户】` **Cloudflare 账户**（把域名 NS 迁入，用于 DNS 解析 + DNS-01 泛域名证书）。
 - [ ] `【需要用户】` **MongoDB Atlas 账户**（创建**全新集群**，独立于 wherebear 生产集群）。
 - [ ] `【需要用户】` **Neon 账户**（Postgres，Portal 用）。
@@ -71,7 +71,7 @@ Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
 
 | 变量 | 示例 / 占位 | 从哪拿 | 必需? |
 |---|---|---|---|
-| `NEXT_PUBLIC_BASE_URL` | `https://what-aisle.com` | 你的生产域名（**不是 localhost**） | **required** |
+| `NEXT_PUBLIC_BASE_URL` | `https://whataisle.com` | 你的生产域名（**不是 localhost**） | **required** |
 | `DATABASE_URL` | `postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require` | Neon 项目连接串 | **required** |
 | `BETTER_AUTH_SECRET` | `<openssl rand -base64 32>` | 自生成 | **required** |
 | `STRIPE_SECRET_KEY` | `sk_live_...`（测试期 `sk_test_...`） | Stripe Dashboard → Developers → API keys | **required** |
@@ -81,13 +81,13 @@ Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
 | `NEXT_PUBLIC_STRIPE_PRICE_WHATAISLE_SETUP` | `price_...` | Stripe → 你创建的 **$688 一次性** Price ID | **required** |
 | `INTERNAL_API_SECRET` | `<openssl rand -base64 32>` | 自生成，**两应用必须完全相同** | **required** |
 | `STORES_INTERNAL_URL` | `http://127.0.0.1:3001` | 固定回环地址（Stores 端口） | required（有默认值 `http://127.0.0.1:3001`，显式写更稳） |
-| `NEXT_PUBLIC_STORE_BASE_DOMAIN` | `what-aisle.com` | 固定域名（子域名卡片拼接用） | required（默认 `what-aisle.com`） |
+| `NEXT_PUBLIC_STORE_BASE_DOMAIN` | `whataisle.com` | 固定域名（子域名卡片拼接用） | required（默认 `whataisle.com`） |
 | `STORAGE_REGION` | `auto` | R2 固定 `auto` | **required**（R2 预签名） |
 | `STORAGE_BUCKET_NAME` | `whataisle-videos` | 你的 R2 bucket 名 | **required** |
 | `STORAGE_ACCESS_KEY_ID` | `<R2 S3 token access key>` | Cloudflare R2 → Manage API Tokens | **required** |
 | `STORAGE_SECRET_ACCESS_KEY` | `<R2 S3 token secret>` | 同上 | **required** |
 | `STORAGE_ENDPOINT` | `https://<accountid>.r2.cloudflarestorage.com` | R2 → bucket → S3 API endpoint | **required** |
-| `STORAGE_PUBLIC_URL` | `https://videos.what-aisle.com` 或 `https://pub-xxx.r2.dev` | R2 公共访问 URL（可选，用于回读链接） | optional |
+| `STORAGE_PUBLIC_URL` | `https://videos.whataisle.com` 或 `https://pub-xxx.r2.dev` | R2 公共访问 URL（可选，用于回读链接） | optional |
 | `CRON_JOBS_USERNAME` | `wa-cron` | 自定义（cron basic auth 用户名） | **required**（store-maintenance cron） |
 | `CRON_JOBS_PASSWORD` | `<openssl rand -base64 24>` | 自生成 | **required** |
 | `RESEND_API_KEY` | `re_...` | Resend Dashboard → API Keys | **required**（发邮件） |
@@ -114,7 +114,7 @@ Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
 | `STORE_ADMIN_COOKIE_SECRET` | `<openssl rand -base64 32>`（**≥16 字符**） | 自生成；`lib/signed-token.ts` 强制 ≥16，否则拒签 cookie | **required**（店员/superadmin 会话签名） |
 | `SUPERADMIN_TOKEN` | `<openssl rand -base64 32>` | 自生成；`app/api/superadmin/session` 时间安全比对 | **required**（建店台登录） |
 | `PORTAL_INTERNAL_URL` | `http://127.0.0.1:3002` | 固定回环（Portal 端口）；反向调 `store-status` 用 | required（代码默认 `http://127.0.0.1:3002`） |
-| `R2_PUBLIC_BASE_URL` | `https://videos.what-aisle.com` 或 `https://pub-xxx.r2.dev` | R2 公共 URL；superadmin 拼视频回看链接（`app/superadmin/page.tsx`） | optional（无则 superadmin 视频链接为空，但不影响建店） |
+| `R2_PUBLIC_BASE_URL` | `https://videos.whataisle.com` 或 `https://pub-xxx.r2.dev` | R2 公共 URL；superadmin 拼视频回看链接（`app/superadmin/page.tsx`） | optional（无则 superadmin 视频链接为空，但不影响建店） |
 | `DEV_STORE_SLUG` | `store-a` | **仅本地开发**：Host 为裸 localhost/IP 时的租户回退 | optional（**生产不设**） |
 | `SEARCH_ENGINE` | `legacy` | 可选回滚开关；不设=默认 ADK 路径 | optional |
 | `GEMINI_API_KEY` | `AIza...` | **仅逃生门**：设了则走 AI Studio 而非 Vertex（`lib/gemini.ts`） | optional（生产用 Vertex ADC，**不设**） |
@@ -133,14 +133,14 @@ Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
 
 ### B.1 Cloudflare（DNS + 泛域名证书 token）
 
-1. `【需要用户】` 在 Cloudflare 添加站点 `what-aisle.com`，按提示到**域名注册商**把 NS 改为 Cloudflare 给的两个 NS，等待生效（`dig NS what-aisle.com` 出现 Cloudflare NS 即成）。
+1. `【需要用户】` 在 Cloudflare 添加站点 `whataisle.com`，按提示到**域名注册商**把 NS 改为 Cloudflare 给的两个 NS，等待生效（`dig NS whataisle.com` 出现 Cloudflare NS 即成）。
 2. `【需要用户】` 待 VM 有静态 IP 后（见 §C），在 Cloudflare DNS 添加（**Proxy status = DNS only / 灰云**，泛域名证书走 DNS-01，不能开橙云代理）：
-   - `A  @    → VM_IP`（`what-aisle.com`）
-   - `A  *    → VM_IP`（`*.what-aisle.com`，覆盖所有店铺子域 + `superadmin`）
+   - `A  @    → VM_IP`（`whataisle.com`）
+   - `A  *    → VM_IP`（`*.whataisle.com`，覆盖所有店铺子域 + `superadmin`）
    - （可选）`A  www → VM_IP`
 3. `【需要用户】` 创建 **scoped API Token**（My Profile → API Tokens → Create Token → Custom）：
    - 权限：**Zone → DNS → Edit**
-   - Zone Resources：Include → Specific zone → `what-aisle.com`
+   - Zone Resources：Include → Specific zone → `whataisle.com`
    - 复制 token → 即 **`CF_API_TOKEN`**（Caddy DNS-01 用，见 §D）。
 
 ### B.2 Neon（Postgres）+ 迁移
@@ -235,7 +235,7 @@ npm run seed:stores     # = tsx scripts/seed-stores.ts
    - **$688 一次性**（one-time）→ 记 Price ID → `NEXT_PUBLIC_STRIPE_PRICE_WHATAISLE_SETUP`
      （代码把 setup fee 作为 subscription checkout 的额外 line item，PRD F-3）
 2. `【需要用户】` Developers → Webhooks → Add endpoint：
-   - URL：`https://what-aisle.com/api/webhooks/stripe`
+   - URL：`https://whataisle.com/api/webhooks/stripe`
    - **订阅事件集**（与源码 `payment/provider/stripe.ts` + `lib/store-lifecycle.ts` 实际处理的一致）：
      - `checkout.session.completed` → 建店 → `awaiting_video`
      - `checkout.session.expired` → 释放 `pending_payment` 行（+ 每日 cron 兜底）
@@ -390,12 +390,12 @@ caddy hash-password --plaintext 'YOUR_STRONG_FOUNDER_PASSWORD'
   respond @internal 403
 }
 
-what-aisle.com, www.what-aisle.com {
+whataisle.com, www.whataisle.com {
   import block_internal
   reverse_proxy 127.0.0.1:3002
 }
 
-superadmin.what-aisle.com {
+superadmin.whataisle.com {
   tls {
     dns cloudflare {env.CF_API_TOKEN}
   }
@@ -406,7 +406,7 @@ superadmin.what-aisle.com {
   reverse_proxy 127.0.0.1:3001
 }
 
-*.what-aisle.com {
+*.whataisle.com {
   tls {
     dns cloudflare {env.CF_API_TOKEN}
   }
@@ -415,7 +415,7 @@ superadmin.what-aisle.com {
 }
 ```
 
-> 要点：`/api/internal/*` 在**每个 vhost**都 403（Portal 侧也有反向接口 `store-status`）；内部互调只走 127.0.0.1 回环。`superadmin` 走 `*.what-aisle.com` 的泛域名证书，但因显式列在前面而独立匹配（双层防护：Caddy `basic_auth` + 应用 `SUPERADMIN_TOKEN`）。
+> 要点：`/api/internal/*` 在**每个 vhost**都 403（Portal 侧也有反向接口 `store-status`）；内部互调只走 127.0.0.1 回环。`superadmin` 走 `*.whataisle.com` 的泛域名证书，但因显式列在前面而独立匹配（双层防护：Caddy `basic_auth` + 应用 `SUPERADMIN_TOKEN`）。
 
 启动 / 校验：
 
@@ -423,7 +423,7 @@ superadmin.what-aisle.com {
 sudo systemctl enable --now caddy
 caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
-sudo journalctl -u caddy -n 50 --no-pager   # 看是否成功签发 *.what-aisle.com 证书
+sudo journalctl -u caddy -n 50 --no-pager   # 看是否成功签发 *.whataisle.com 证书
 ```
 
 ---
@@ -527,9 +527,9 @@ crontab -e
 **1. `/api/internal/*` 公网返回 403**（Caddy 封禁，PRD F-13 验收）：
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://what-aisle.com/api/internal/stores          # 期望 403
-curl -s -o /dev/null -w '%{http_code}\n' https://store-a.what-aisle.com/api/internal/stores   # 期望 403
-curl -s -o /dev/null -w '%{http_code}\n' https://superadmin.what-aisle.com/api/internal/stores # 期望 403
+curl -s -o /dev/null -w '%{http_code}\n' https://whataisle.com/api/internal/stores          # 期望 403
+curl -s -o /dev/null -w '%{http_code}\n' https://store-a.whataisle.com/api/internal/stores   # 期望 403
+curl -s -o /dev/null -w '%{http_code}\n' https://superadmin.whataisle.com/api/internal/stores # 期望 403
 # 回环内部（VM 内）带正确 bearer 应 ≠401：
 curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $INTERNAL_API_SECRET" http://127.0.0.1:3001/api/internal/stores
 ```
@@ -538,17 +538,17 @@ curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $INTERNAL_API
 
 ```bash
 # 在合法租户 host 上伪造头，不应越权；未知子域 API → 404
-curl -s -o /dev/null -w '%{http_code}\n' -H 'x-store-slug: store-b' https://store-a.what-aisle.com/api/activity
-curl -s -o /dev/null -w '%{http_code}\n' https://nosuchstore.what-aisle.com/api/search   # 期望 404（proxy: store not found）
+curl -s -o /dev/null -w '%{http_code}\n' -H 'x-store-slug: store-b' https://store-a.whataisle.com/api/activity
+curl -s -o /dev/null -w '%{http_code}\n' https://nosuchstore.whataisle.com/api/search   # 期望 404（proxy: store not found）
 ```
 
 **3. `building` 状态店的 `/api/search` 对匿名返回 403**（`requireStore(req)` 公众 audience 只放行 `live`）：
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<BUILDING>.what-aisle.com/api/search \
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<BUILDING>.whataisle.com/api/search \
   -H 'content-type: application/json' -d '{"query":"milk"}'   # 期望 403（store is not active）
 # 对照：live 店应能开始 SSE（200）
-curl -s -o /dev/null -w '%{http_code}\n' -X POST https://store-a.what-aisle.com/api/search \
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://store-a.whataisle.com/api/search \
   -H 'content-type: application/json' -d '{"query":"milk"}'   # 期望 200
 ```
 
@@ -556,7 +556,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://store-a.what-aisle.com/
 
 ```bash
 # 先过 Caddy basic_auth（founder:密码），再拿 SUPERADMIN_TOKEN 换 wa_super cookie
-curl -s -u 'founder:YOUR_FOUNDER_PASSWORD' -X POST https://superadmin.what-aisle.com/api/superadmin/session \
+curl -s -u 'founder:YOUR_FOUNDER_PASSWORD' -X POST https://superadmin.whataisle.com/api/superadmin/session \
   -H 'content-type: application/json' -d "{\"token\":\"$SUPERADMIN_TOKEN\"}" -i | head -20
 # 期望：Set-Cookie: wa_super=...；错 token → 401
 ```
@@ -568,7 +568,7 @@ curl -s -u 'founder:YOUR_FOUNDER_PASSWORD' -X POST https://superadmin.what-aisle
 - [ ] `/api/home-summary`、`/api/activity`、`/api/stats`、`/api/search-logs`、`/api/debug` 在 store-a 只显示 store-a 数据。
 - [ ] 对搜索 agent 说"统计全库/其他店有多少商品" → 做不到（无原生 MCP count 工具，检索恒带 store 过滤）。
 - [ ] store-a 上给某次搜索评分，再用该 history id 从 store-b POST → `ok:false`（租户作用域更新）。
-- [ ] 未知子域 → "这个店铺不存在" 页；保留子域（如 `www.`）→ 308 跳 what-aisle.com。
+- [ ] 未知子域 → "这个店铺不存在" 页；保留子域（如 `www.`）→ 308 跳 whataisle.com。
 - [ ] 在 Atlas 把 store-b 置 `suspended` → 60s 内（缓存 TTL）顾客页显示"店铺已暂停"、其 API 403；改回 `live` 恢复。
 
 **6. Stripe CLI 触发 6 类 webhook** 打到线上端点（先 test 模式）：
@@ -576,7 +576,7 @@ curl -s -u 'founder:YOUR_FOUNDER_PASSWORD' -X POST https://superadmin.what-aisle
 ```bash
 stripe login
 # 转发（也可直接 --api-key 打 live）
-stripe listen --forward-to https://what-aisle.com/api/webhooks/stripe
+stripe listen --forward-to https://whataisle.com/api/webhooks/stripe
 # 另开一窗逐个触发：
 stripe trigger checkout.session.completed
 stripe trigger checkout.session.expired
@@ -585,7 +585,7 @@ stripe trigger invoice.payment_failed
 stripe trigger customer.subscription.deleted
 stripe trigger charge.refunded
 ```
-> 端到端更真：从 `what-aisle.com` 落地页输店名 → 注册 → 用 Stripe 测试卡 `4242 4242 4242 4242` 完成 $787 首期 → 观察店铺进 `awaiting_video`、Stores App 建店幂等（重放不重复建）。
+> 端到端更真：从 `whataisle.com` 落地页输店名 → 注册 → 用 Stripe 测试卡 `4242 4242 4242 4242` 完成 $787 首期 → 观察店铺进 `awaiting_video`、Stores App 建店幂等（重放不重复建）。
 
 ---
 
@@ -594,8 +594,8 @@ stripe trigger charge.refunded
 ### Go-Live cutover
 
 1. `【需要用户】` 冒烟全绿后，把 Stripe 从 **test → live**：换 `.env.local` 里 `STRIPE_SECRET_KEY`、两个 `NEXT_PUBLIC_STRIPE_PRICE_WHATAISLE_*` 为 live Price、`STRIPE_WEBHOOK_SECRET` 为 live 端点的 secret；`pnpm build && pm2 restart wa-portal`。
-2. `【需要用户】` 确认 Cloudflare `@` 与 `*` A 记录指向 VM_IP 且**灰云（DNS only）**；`dig store-a.what-aisle.com` 解析到 VM_IP。
-3. 确认 `journalctl -u caddy` 已签发 `*.what-aisle.com` 证书（无 rate-limit 报错）。
+2. `【需要用户】` 确认 Cloudflare `@` 与 `*` A 记录指向 VM_IP 且**灰云（DNS only）**；`dig store-a.whataisle.com` 解析到 VM_IP。
+3. 确认 `journalctl -u caddy` 已签发 `*.whataisle.com` 证书（无 rate-limit 报错）。
 4. `pm2 save` 固化；确认 `pm2 startup` 与 Caddy `systemctl enable` 均已开机自启。
 
 ### 部署新版本（日常，PRD §6.5 流程）
@@ -637,6 +637,6 @@ gcloud compute ssh whataisle-vm --project="$PROJECT" --zone="$ZONE" --command '
 2. **cron 路径名**：PRD F-4 提到"每日 cron 兜底"释放过期 slug，源码实现为单一端点 `GET /api/cron/store-maintenance`（同时做 7 天欠费暂停 + 24h pending 清理），并非分散多端点。已按源码写。
 3. **Gemini location 变量无效**：wherebear 生产 `.env` 有 `GOOGLE_CLOUD_LOCATION=us-central1`，但 `lib/gemini.ts` / ADK `search-agent.ts` **硬编码 `location:'global'`**，该变量对模型调用无效——故本 runbook **不列** `GOOGLE_CLOUD_LOCATION` 为必需。
 4. **`SEARCH_ENGINE` / `ADMIN_WRITES`**：`SAAS-SETUP.md` §4 列了 `ADMIN_WRITES`（legacy demo 写入开关），但 F-10 已用每店 passcode 鉴权取代；生产**不设** `ADMIN_WRITES`。`SEARCH_ENGINE=legacy` 仅 demo 回滚用，生产留空走 ADK。
-5. **superadmin 证书来源**：Caddyfile 中 `superadmin.what-aisle.com` 与 `*.what-aisle.com` 都靠同一张 DNS-01 泛域名证书；`superadmin` 显式列前面只为叠加 `basic_auth`，非单独申请证书。与 PRD §6.5 骨架一致。
+5. **superadmin 证书来源**：Caddyfile 中 `superadmin.whataisle.com` 与 `*.whataisle.com` 都靠同一张 DNS-01 泛域名证书；`superadmin` 显式列前面只为叠加 `basic_auth`，非单独申请证书。与 PRD §6.5 骨架一致。
 6. **`NEXT_PUBLIC_STRIPE_PRICE_PRO_*` / `_CREDITS_*` / `_LIFETIME`**：`config/website.tsx` 用 `!` 断言读取它们，但 What-Aisle 主结账只走 `WHATAISLE_MONTHLY/SETUP`。若构建期严格校验报错，给它们填任意占位 Price 或空串即可；不影响 What-Aisle 链路（PRD F-6 要求隐藏 credits）。
 ```

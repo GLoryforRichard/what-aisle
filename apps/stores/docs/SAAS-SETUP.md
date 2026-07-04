@@ -113,9 +113,9 @@ Run after EVERY change that touches data access:
       mounted; `count` was removed) and retrieval stays store-filtered.
 - [ ] Search feedback: rate a search on store-a, then POST the same history id
       from store-b → `ok: false` (tenant-scoped update).
-- [ ] Unknown subdomain (`nosuchstore.what-aisle.com` / random `*.localhost`)
+- [ ] Unknown subdomain (`nosuchstore.whataisle.com` / random `*.localhost`)
       → "这个店铺不存在" page; reserved subdomain (e.g. `www.`) → 308 to
-      what-aisle.com.
+      whataisle.com.
 - [ ] Set store-b `status: 'suspended'` in Atlas → customer page shows
       "店铺已暂停" within 60 s (store cache TTL) and its APIs return 403;
       set back to `live` → recovers.

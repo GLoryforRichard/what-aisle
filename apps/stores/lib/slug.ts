@@ -1,6 +1,6 @@
 /**
  * Store slug rules — the slug IS the tenant id (store_id) and the subdomain
- * (`<slug>.what-aisle.com`), so validation is security-relevant.
+ * (`<slug>.whataisle.com`), so validation is security-relevant.
  *
  * NOTE: the portal app (apps/portal) keeps its own copy of these rules for the
  * landing-page name checker. Any change here must be mirrored there (PRD §9.1

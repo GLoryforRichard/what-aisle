@@ -120,8 +120,8 @@ export const websiteConfig: WebsiteConfig = {
   mail: {
     enable: true,
     provider: 'resend',
-    fromEmail: 'What-Aisle <support@what-aisle.com>',
-    supportEmail: 'What-Aisle <support@what-aisle.com>',
+    fromEmail: 'What-Aisle <support@whataisle.com>',
+    supportEmail: 'What-Aisle <support@whataisle.com>',
   },
   newsletter: {
     enable: true,

@@ -34,7 +34,7 @@ type CheckState =
 /**
  * Store name checker — the landing page's primary CTA (PRD F-1).
  *
- * Type a supermarket name → live preview of {slug}.what-aisle.com +
+ * Type a supermarket name → live preview of {slug}.whataisle.com +
  * debounced availability check (display only, nothing is created).
  * The CTA starts the signup/checkout flow ($688 setup + $99/mo in
  * ONE Stripe Checkout).
@@ -187,7 +187,7 @@ export function StoreNameChecker({ className }: { className?: string }) {
           <>
             <span className="font-mono text-foreground">
               {previewSlug}
-              <span className="text-muted-foreground">.what-aisle.com</span>
+              <span className="text-muted-foreground">.whataisle.com</span>
             </span>
             {check.status === 'checking' && (
               <span className="flex items-center gap-1 text-muted-foreground">

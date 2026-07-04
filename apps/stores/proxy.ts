@@ -3,7 +3,7 @@
  * see node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md).
  *
  * Multi-tenant subdomain routing (PRD F-7):
- *   Host: <slug>.what-aisle.com  →  inject `x-store-slug: <slug>` request header
+ *   Host: <slug>.whataisle.com  →  inject `x-store-slug: <slug>` request header
  *
  * No route rewriting for valid tenants — the existing app/ structure is
  * untouched; lib/store-context.ts resolves the header into a Store document.
@@ -15,13 +15,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SLUG_REGEX, RESERVED_SLUGS } from '@/lib/slug';
 
-const APEX_DOMAIN = 'what-aisle.com';
-const PORTAL_URL = 'https://what-aisle.com';
+const APEX_DOMAIN = 'whataisle.com';
+const PORTAL_URL = 'https://whataisle.com';
 const NOT_FOUND_PATH = '/store-not-found';
 
 /**
  * Host → candidate slug.
- *  - <slug>.what-aisle.com                    → slug (production, wildcard DNS)
+ *  - <slug>.whataisle.com                    → slug (production, wildcard DNS)
  *  - <slug>.localhost                         → slug (local dev)
  *  - anything else (localhost, 127.0.0.1, VM) → DEV_STORE_SLUG fallback
  * Returns null when no slug can be derived (apex/www or bare host without

@@ -2,7 +2,7 @@
   "Metadata": {
     "name": "What-Aisle",
     "title": "What-Aisle - AI aisle finder for your supermarket",
-    "description": "Give your supermarket its own AI-powered 'which aisle is it in?' app. Customers find any product in 3 seconds at yourstore.what-aisle.com."
+    "description": "Give your supermarket its own AI-powered 'which aisle is it in?' app. Customers find any product in 3 seconds at yourstore.whataisle.com."
   },
   "Common": {
     "premium": "Premium",
@@ -74,7 +74,7 @@
       "name": "What-Aisle",
       "description": "Everything your supermarket needs: white-glove setup plus the AI aisle finder subscription",
       "features": {
-        "feature-1": "Your own store address: yourstore.what-aisle.com",
+        "feature-1": "Your own store address: yourstore.whataisle.com",
         "feature-2": "AI product search in any language — no login for shoppers",
         "feature-3": "Staff photo upload keeps shelves up to date",
         "feature-4": "White-glove setup: we build your shelf map from one video",
@@ -851,7 +851,7 @@
     "description": "AI-powered aisle finder for your supermarket",
     "hero": {
       "title": "Customers find any product in 3 seconds",
-      "description": "What-Aisle gives your supermarket its own AI-powered aisle finder at yourstore.what-aisle.com. Shoppers search in any language and instantly see which aisle a product is on — no app install, no login, no more \"excuse me, where is...\"",
+      "description": "What-Aisle gives your supermarket its own AI-powered aisle finder at yourstore.whataisle.com. Shoppers search in any language and instantly see which aisle a product is on — no app install, no login, no more \"excuse me, where is...\"",
       "introduction": "$688 setup + $99/mo — you only shoot one video",
       "primary": "Get Started",
       "secondary": "See pricing"

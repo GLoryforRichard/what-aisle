@@ -2,7 +2,7 @@
  * Store slug rules — MUST stay identical to the stores app
  * (apps/stores). Any change here needs to be mirrored there (PRD 9.1-#8).
  *
- * A slug is the subdomain of a store: {slug}.what-aisle.com
+ * A slug is the subdomain of a store: {slug}.whataisle.com
  */
 
 /** 3-30 chars, lowercase alphanumeric + hyphens, no leading/trailing hyphen */

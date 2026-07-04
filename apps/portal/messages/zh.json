@@ -74,7 +74,7 @@
       "name": "What-Aisle",
       "description": "超市所需的一切：白手套开店服务 + AI 找货订阅",
       "features": {
-        "feature-1": "专属店铺网址：你的店名.what-aisle.com",
+        "feature-1": "专属店铺网址：你的店名.whataisle.com",
         "feature-2": "顾客免登录、多语言 AI 搜索商品",
         "feature-3": "店员拍照即可更新货架商品",
         "feature-4": "白手套开店：你拍一段视频，我们建好全店货架地图",
@@ -851,7 +851,7 @@
     "description": "超市专属的 AI 找货助手",
     "hero": {
       "title": "顾客 3 秒找到商品在哪个货架",
-      "description": "What-Aisle 为你的超市开通专属网址（你的店名.what-aisle.com）：顾客免安装、免登录，用任何语言搜索商品，立刻知道在哪排货架；店员拍照即可更新商品位置。",
+      "description": "What-Aisle 为你的超市开通专属网址（你的店名.whataisle.com）：顾客免安装、免登录，用任何语言搜索商品，立刻知道在哪排货架；店员拍照即可更新商品位置。",
       "introduction": "$688 开店服务 + $99/月 — 你只需拍一段视频",
       "primary": "开始使用",
       "secondary": "查看定价"

@@ -10,7 +10,7 @@
 
 import { C, FONT, SHADOW } from '@/lib/theme';
 
-const PORTAL_URL = 'https://what-aisle.com';
+const PORTAL_URL = 'https://whataisle.com';
 
 function StatusShell({
   emoji,
@@ -74,8 +74,8 @@ export function TenantNotFound() {
       emoji="🧭"
       titleZh="这个店铺不存在"
       titleEn="This store doesn't exist"
-      bodyZh="想让你的超市拥有这样的找货页面？去 what-aisle.com 开通。"
-      bodyEn="Want a page like this for your own store? Set one up at what-aisle.com."
+      bodyZh="想让你的超市拥有这样的找货页面？去 whataisle.com 开通。"
+      bodyEn="Want a page like this for your own store? Set one up at whataisle.com."
       cta={{ href: PORTAL_URL, labelZh: '去开通', labelEn: 'Open your store' }}
     />
   );
@@ -114,8 +114,8 @@ export function TenantClosed() {
       emoji="🚪"
       titleZh="店铺已关闭"
       titleEn="This store has closed"
-      bodyZh="想让你的超市拥有这样的找货页面？去 what-aisle.com 开通。"
-      bodyEn="Want a page like this for your own store? Set one up at what-aisle.com."
+      bodyZh="想让你的超市拥有这样的找货页面？去 whataisle.com 开通。"
+      bodyEn="Want a page like this for your own store? Set one up at whataisle.com."
       cta={{ href: PORTAL_URL, labelZh: '去开通', labelEn: 'Open your store' }}
     />
   );

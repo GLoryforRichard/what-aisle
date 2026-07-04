@@ -32,7 +32,7 @@ export default function StoreVideoInstructions({
   return (
     <EmailLayout locale={locale} messages={messages}>
       <Text>{t('title', { storeName })}</Text>
-      <Text>{t('body', { domain: `${slug}.what-aisle.com` })}</Text>
+      <Text>{t('body', { domain: `${slug}.whataisle.com` })}</Text>
       <Text>{t('step1')}</Text>
       <Text>{t('step2')}</Text>
       <Text>{t('step3')}</Text>
@@ -47,5 +47,5 @@ StoreVideoInstructions.PreviewProps = {
   messages: defaultMessages,
   storeName: 'Ethnic Market',
   slug: 'ethnic-market',
-  dashboardUrl: 'https://what-aisle.com/dashboard',
+  dashboardUrl: 'https://whataisle.com/dashboard',
 };

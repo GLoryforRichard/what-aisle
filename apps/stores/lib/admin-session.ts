@@ -8,7 +8,7 @@
  *    stored timestamp, so every cookie signed before the reset stops
  *    verifying (no server-side session store needed);
  *  - the cookie is host-only (no Domain attribute) → it never travels to a
- *    sibling `<other-store>.what-aisle.com`, giving cross-store isolation
+ *    sibling `<other-store>.whataisle.com`, giving cross-store isolation
  *    for free; `slug` is still checked on every request as defense in depth.
  */
 

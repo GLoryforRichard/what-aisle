@@ -389,7 +389,7 @@ async function runStoreProvisioningSideEffects(
 
   // Heads-up for the founder: a new store was sold
   await notifyFounder(
-    `🎉 What-Aisle: new store paid! '${storeName}' → https://${slug}.what-aisle.com (awaiting video)`
+    `🎉 What-Aisle: new store paid! '${storeName}' → https://${slug}.whataisle.com (awaiting video)`
   );
 }
 

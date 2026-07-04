@@ -245,6 +245,35 @@ export const STRINGS = {
     // Store config load failure (shelf pickers / store map)
     config_load_error: 'Store info failed to load.',
     config_retry: 'Retry',
+
+    // Shelf admin — product write actions (task #9)
+    shelf_admin_title: 'Shelf admin',
+    shelf_admin_subtitle: 'Tap a shelf to view or edit its products.',
+    shelf_admin_back_workspace: 'Workspace',
+    shelf_admin_back_shelves: 'shelves',
+    shelf_admin_add: 'add',
+    shelf_admin_refresh: 'refresh',
+    shelf_admin_edit: 'edit',
+    shelf_admin_delete: 'delete',
+    shelf_admin_clear: 'clear',
+    shelf_admin_loading: 'Loading…',
+    shelf_admin_empty: 'No products on this shelf yet.',
+    shelf_admin_products_n: (n: number) => `${n} products`,
+    shelf_admin_confirm_delete: (name: string) => `Delete "${name}"?`,
+    shelf_admin_confirm_clear: (n: number, code: string) =>
+      `Delete all ${n} product${n === 1 ? '' : 's'} on shelf ${code}?`,
+    shelf_admin_clear_title: (n: number, code: string) =>
+      `Delete all ${n} products on ${code}`,
+    shelf_admin_edit_title: 'Edit product',
+    shelf_admin_add_title: 'Add product',
+    shelf_admin_cancel: 'Cancel',
+    shelf_admin_save: 'Save',
+    shelf_admin_saving: 'Saving…',
+    shelf_admin_field_aliases: 'aliases (one per line)',
+    shelf_admin_field_category_ph: 'e.g. noodle, sauce, snack',
+    shelf_admin_err_write: 'Write failed — please try again.',
+    shelf_admin_session_expired: 'Session expired — re-enter the passcode.',
+    shelf_admin_reauth: 'Re-enter passcode',
   },
   zh: {
     app_name: '找货熊',
@@ -459,6 +488,35 @@ export const STRINGS = {
     // Store config load failure (shelf pickers / store map)
     config_load_error: '店铺信息加载失败。',
     config_retry: '重试',
+
+    // Shelf admin — product write actions (task #9)
+    shelf_admin_title: '货架管理',
+    shelf_admin_subtitle: '点一个货架来查看或编辑它的商品。',
+    shelf_admin_back_workspace: '工作台',
+    shelf_admin_back_shelves: '货架',
+    shelf_admin_add: '添加',
+    shelf_admin_refresh: '刷新',
+    shelf_admin_edit: '编辑',
+    shelf_admin_delete: '删除',
+    shelf_admin_clear: '清空',
+    shelf_admin_loading: '加载中…',
+    shelf_admin_empty: '这个货架还没有商品。',
+    shelf_admin_products_n: (n: number) => `${n} 个商品`,
+    shelf_admin_confirm_delete: (name: string) => `删除「${name}」？`,
+    shelf_admin_confirm_clear: (n: number, code: string) =>
+      `删除货架 ${code} 上的全部 ${n} 个商品？`,
+    shelf_admin_clear_title: (n: number, code: string) =>
+      `删除 ${code} 上的全部 ${n} 个商品`,
+    shelf_admin_edit_title: '编辑商品',
+    shelf_admin_add_title: '添加商品',
+    shelf_admin_cancel: '取消',
+    shelf_admin_save: '保存',
+    shelf_admin_saving: '保存中…',
+    shelf_admin_field_aliases: '别名（每行一个）',
+    shelf_admin_field_category_ph: '例如：面、酱、零食',
+    shelf_admin_err_write: '写入失败，请重试。',
+    shelf_admin_session_expired: '会话已过期，请重新输入密码。',
+    shelf_admin_reauth: '重新输入密码',
   },
 } as const;
 

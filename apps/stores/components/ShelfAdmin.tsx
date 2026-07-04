@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { ShelfLocation } from '@/lib/shelves';
 import { useStoreConfig } from '@/lib/store-config-client';
 import { useTranslation } from '@/lib/i18n';
@@ -24,6 +24,16 @@ const mono: React.CSSProperties = {
   fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
 };
 
+/** Shape the API accepts for create/edit. Store is scoped server-side —
+ * the client must NOT send store_id. Note the server parses `latest_aisle`
+ * (not `aisle`) as the shelf field. */
+interface ProductWrite {
+  canonical_name: string;
+  aliases?: string[];
+  category?: string;
+  latest_aisle: string;
+}
+
 export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
   // Per-store shelf taxonomy (data-driven — no hardcoded shelf list).
@@ -36,9 +46,14 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Set once a write returns 401 (cookie expired / absent). PasscodeGate owns
+  // re-auth, so we surface a bilingual banner and offer a reload to trigger it.
+  const [sessionExpired, setSessionExpired] = useState(false);
+  // Transient inline error from a write that failed (non-2xx / network).
+  const [writeError, setWriteError] = useState<string | null>(null);
 
   const loadCounts = useCallback(() => {
-    fetch('/api/admin/products')
+    fetch('/api/admin/products', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(d => { if (d.ok) setCounts(d.counts); });
   }, []);
@@ -46,7 +61,7 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
   const loadShelf = useCallback((code: string) => {
     setLoading(true);
     setError(null);
-    fetch(`/api/admin/products?aisle=${encodeURIComponent(code)}`)
+    fetch(`/api/admin/products?aisle=${encodeURIComponent(code)}`, { credentials: 'same-origin' })
       .then(r => r.json())
       .then(d => {
         if (!d.ok) setError(d.error || 'load failed');
@@ -62,64 +77,103 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
     else setItems(null);
   }, [active, loadShelf]);
 
-  // ── Demo isolation ─────────────────────────────────────────────────────
-  // This deployment is public (hackathon judging) while the database serves a
-  // REAL store, so write actions below mutate ONLY this screen's local state.
-  // The server-side write endpoints are independently locked too (403) — see
-  // lib/admin-guard.ts. After a few interactions we tell the visitor what's
-  // going on so the sandbox doesn't read as a bug.
-  const demoOps = useRef(0);
-  const [showDemoNote, setShowDemoNote] = useState(false);
-  const bumpDemo = () => {
-    demoOps.current += 1;
-    if (demoOps.current === 3) setShowDemoNote(true);
-  };
+  // Re-GET the affected shelf's rows AND the per-shelf counts so the UI mirrors
+  // the DB after any write. Passing an explicit code lets callers refresh a
+  // shelf other than the one currently open (e.g. a create on a different aisle).
+  const reconcile = useCallback((code?: string | null) => {
+    loadCounts();
+    const c = code ?? active;
+    if (c && c === active) loadShelf(c);
+  }, [loadCounts, loadShelf, active]);
 
-  const onDelete = (p: AdminProduct) => {
-    if (!confirm(`Delete "${p.canonical_name}"?`)) return;
-    setItems(prev => (prev ? prev.filter(x => x._id !== p._id) : prev));
-    if (active) {
-      setCounts(prev => prev ? { ...prev, [active]: Math.max(0, (prev[active] ?? 1) - 1) } : prev);
-    }
-    bumpDemo();
-  };
-
-  const onClearShelf = (code: string, currentCount: number) => {
-    if (currentCount === 0) return;
-    const ok = confirm(
-      `Delete all ${currentCount} product${currentCount === 1 ? '' : 's'} on shelf ${code}?`
-    );
-    if (!ok) return;
-    if (active === code) {
-      setItems([]);
-      setExpandedId(null);
-    }
-    setCounts(prev => prev ? { ...prev, [code]: 0 } : prev);
-    bumpDemo();
-  };
-
-  const onSave = (patch: Partial<AdminProduct>) => {
-    if (!editing) return;
-    const isNew = !editing._id;
-    if (isNew) {
-      const aisle = (patch.latest_aisle || active || '').trim();
-      const fresh: AdminProduct = {
-        _id: `demo-${demoOps.current}-${(patch.canonical_name || 'x').length}`,
-        canonical_name: patch.canonical_name || 'Untitled product',
-        aliases: patch.aliases ?? [],
-        category: patch.category,
-        latest_aisle: aisle,
-        evidence_count: 1,
-      };
-      if (active === aisle) setItems(prev => (prev ? [fresh, ...prev] : [fresh]));
-      setCounts(prev => prev ? { ...prev, [aisle]: (prev[aisle] ?? 0) + 1 } : prev);
+  // Central error mapper: 401 → session-expired banner; anything else → inline
+  // bilingual write error. Returns true when the caller should treat it as a
+  // hard failure (used to roll back optimistic UI).
+  const handleWriteFailure = useCallback((status: number, body?: { error?: string }) => {
+    if (status === 401 || status === 403) {
+      setSessionExpired(true);
     } else {
-      setItems(prev => prev
-        ? prev.map(x => (x._id === editing._id ? { ...x, ...patch } : x))
-        : prev);
+      setWriteError(body?.error || t('shelf_admin_err_write'));
     }
-    setEditing(null);
-    bumpDemo();
+  }, [t]);
+
+  const onDelete = async (p: AdminProduct) => {
+    if (!confirm(t('shelf_admin_confirm_delete', p.canonical_name))) return;
+    setWriteError(null);
+    // Optimistic remove; snapshot for rollback.
+    const prevItems = items;
+    setItems(prev => (prev ? prev.filter(x => x._id !== p._id) : prev));
+    try {
+      const res = await fetch(`/api/admin/products/${encodeURIComponent(p._id)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setItems(prevItems);           // rollback
+        handleWriteFailure(res.status, body);
+        return;
+      }
+      reconcile(active);
+    } catch (e) {
+      setItems(prevItems);             // rollback
+      setWriteError(String(e));
+    }
+  };
+
+  const onClearShelf = async (code: string, currentCount: number) => {
+    if (currentCount === 0) return;
+    if (!confirm(t('shelf_admin_confirm_clear', currentCount, code))) return;
+    setWriteError(null);
+    const prevItems = items;
+    const wasActive = active === code;
+    if (wasActive) { setItems([]); setExpandedId(null); }
+    try {
+      const res = await fetch(`/api/admin/products?aisle=${encodeURIComponent(code)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (wasActive) setItems(prevItems); // rollback
+        handleWriteFailure(res.status, body);
+        return;
+      }
+      reconcile(code);
+    } catch (e) {
+      if (wasActive) setItems(prevItems);   // rollback
+      setWriteError(String(e));
+    }
+  };
+
+  // Create (no _id) → POST; edit → PATCH. Resolves true on success so the modal
+  // can close; false leaves it open with its own inline error shown. The store
+  // is scoped server-side, so we never send store_id.
+  const onSave = async (patch: ProductWrite, id: string): Promise<boolean> => {
+    setWriteError(null);
+    const isNew = !id;
+    try {
+      const res = await fetch(
+        isNew ? '/api/admin/products' : `/api/admin/products/${encodeURIComponent(id)}`,
+        {
+          method: isNew ? 'POST' : 'PATCH',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        handleWriteFailure(res.status, body);
+        return false;
+      }
+      // Reconcile the shelf the product now lives on (may differ from `active`).
+      reconcile(patch.latest_aisle);
+      return true;
+    } catch (e) {
+      setWriteError(String(e));
+      return false;
+    }
   };
 
   return (
@@ -130,14 +184,46 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
         color: C.textMuted, fontFamily: FONT, fontSize: 15, fontWeight: 600,
         padding: '4px 10px 4px 0', marginBottom: 4, marginLeft: -2,
       }}>
-        <Icon name="back" size={20} /> Workspace
+        <Icon name="back" size={20} /> {t('shelf_admin_back_workspace')}
       </button>
       <div style={{ paddingTop: 4, marginBottom: 18 }}>
-        <h1 style={{ fontSize: 30, fontWeight: 800, margin: 0, letterSpacing: -0.8 }}>Shelf admin</h1>
+        <h1 style={{ fontSize: 30, fontWeight: 800, margin: 0, letterSpacing: -0.8 }}>{t('shelf_admin_title')}</h1>
         <p style={{ color: C.textMuted, fontSize: 15, margin: '6px 0 0', fontWeight: 500 }}>
-          Tap a shelf to view or edit its products.
+          {t('shelf_admin_subtitle')}
         </p>
       </div>
+
+      {/* Session expired (401/403) — PasscodeGate owns re-auth, so we surface a
+          bilingual banner and offer a reload to re-run the gate's cookie probe. */}
+      {sessionExpired && (
+        <div style={{
+          marginBottom: 16, padding: '10px 12px',
+          background: '#fee', border: '1px solid #fcc', borderRadius: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          fontSize: 13.5, color: '#933', fontWeight: 600,
+        }}>
+          <span>{t('shelf_admin_session_expired')}</span>
+          <button onClick={() => window.location.reload()} style={{
+            background: C.white, border: `1px solid ${C.border}`, borderRadius: 8,
+            padding: '4px 12px', fontSize: 12.5, fontWeight: 700, color: C.text,
+            cursor: 'pointer', fontFamily: FONT, flexShrink: 0,
+          }}>{t('shelf_admin_reauth')}</button>
+        </div>
+      )}
+
+      {/* Transient write error (non-2xx / network) — dismissible. */}
+      {writeError && !sessionExpired && (
+        <div
+          onClick={() => setWriteError(null)}
+          style={{
+            marginBottom: 16, padding: '10px 12px',
+            background: '#fee', border: '1px solid #fcc', borderRadius: 12,
+            fontSize: 13.5, color: '#933', fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+          {t('shelf_admin_err_write')}
+        </div>
+      )}
 
       {configError && !config && (
         <div style={{
@@ -198,8 +284,8 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
                         e.stopPropagation();
                         onClearShelf(s.code, c);
                       }}
-                      title={`Delete all ${c} products on ${s.code}`}
-                      aria-label={`Delete all ${c} products on ${s.code}`}
+                      title={t('shelf_admin_clear_title', c, s.code)}
+                      aria-label={t('shelf_admin_clear_title', c, s.code)}
                       style={{
                         background: 'transparent',
                         border: '1px solid #e5484d',
@@ -213,7 +299,7 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
                         fontFamily: FONT,
                       }}
                     >
-                      clear
+                      {t('shelf_admin_clear')}
                     </button>
                   )}
                 </div>
@@ -239,9 +325,9 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
                 padding: '6px 13px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 fontFamily: FONT, color: C.text,
               }}
-            >← shelves</button>
+            >← {t('shelf_admin_back_shelves')}</button>
             <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0, flex: 1 }}>
-              <span style={mono}>{active}</span> · {items?.length ?? 0} products
+              <span style={mono}>{active}</span> · {t('shelf_admin_products_n', items?.length ?? 0)}
             </h2>
             <button
               onClick={() => setEditing({ _id: '', canonical_name: '', aliases: [], category: '', latest_aisle: active, evidence_count: 1 } as AdminProduct)}
@@ -250,7 +336,7 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
                 padding: '6px 13px', fontSize: 13, fontWeight: 800, cursor: 'pointer',
                 fontFamily: FONT, boxShadow: SHADOW,
               }}
-            >+ add</button>
+            >+ {t('shelf_admin_add')}</button>
             <button
               onClick={() => loadShelf(active)}
               style={{
@@ -258,13 +344,13 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
                 padding: '6px 11px', fontSize: 12, cursor: 'pointer',
                 fontFamily: FONT, color: C.textMuted, fontWeight: 600,
               }}
-            >refresh</button>
+            >{t('shelf_admin_refresh')}</button>
           </div>
-          {loading && <div style={{ color: C.textMuted, fontSize: 14 }}>Loading…</div>}
+          {loading && <div style={{ color: C.textMuted, fontSize: 14 }}>{t('shelf_admin_loading')}</div>}
           {error && <pre style={{ ...mono, color: '#e5484d' }}>{error}</pre>}
           {items && items.length === 0 && !loading && (
             <div style={{ color: C.textMuted, padding: 24, textAlign: 'center', background: C.bgMuted, borderRadius: 14, fontSize: 14 }}>
-              No products on this shelf yet.
+              {t('shelf_admin_empty')}
             </div>
           )}
           {items && items.length > 0 && (
@@ -311,12 +397,12 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
                           background: C.white, border: `1px solid ${C.border}`, borderRadius: 8,
                           padding: '3px 10px', fontSize: 11.5, cursor: 'pointer',
                           fontFamily: FONT, fontWeight: 600, color: C.text,
-                        }}>edit</button>
+                        }}>{t('shelf_admin_edit')}</button>
                         <button onClick={() => onDelete(p)} style={{
                           background: C.white, border: '1px solid #e5484d', borderRadius: 8,
                           color: '#e5484d', padding: '3px 10px', fontSize: 11.5, cursor: 'pointer',
                           fontFamily: FONT, fontWeight: 600,
-                        }}>delete</button>
+                        }}>{t('shelf_admin_delete')}</button>
                       </div>
                     </div>
                     {isOpen && <ProductDetail product={p} />}
@@ -334,49 +420,8 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
           shelves={shelves}
           onCancel={() => setEditing(null)}
           onSave={onSave}
+          onClose={() => setEditing(null)}
         />
-      )}
-
-      {/* Sandbox notice — shown after the 3rd write interaction. */}
-      {showDemoNote && (
-        <div
-          onClick={() => setShowDemoNote(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(20,12,6,0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 22, zIndex: 200, animation: 'fade .2s ease',
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: C.bg, border: `2px solid ${C.border}`, borderRadius: 18,
-              boxShadow: '6px 6px 0 #111111', padding: '20px 20px 16px',
-              maxWidth: 380, fontFamily: FONT,
-            }}
-          >
-            <div style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: -0.3 }}>
-              🔒 Demo sandbox
-            </div>
-            <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.55, margin: '10px 0 0', fontWeight: 500 }}>
-              This deployment serves a <b style={{ color: C.primaryDark }}>real store</b>, so the
-              edit / delete / add buttons here are isolated from the live database — your changes
-              only affect what you see on this screen and reset on reload. Everything else
-              (search, shelf snap, browsing) is fully live.
-            </p>
-            <button
-              onClick={() => setShowDemoNote(false)}
-              style={{
-                width: '100%', marginTop: 16, padding: '11px 0',
-                background: C.primary, color: C.text, border: `2px solid ${C.border}`,
-                borderRadius: 12, fontFamily: FONT, fontSize: 14.5, fontWeight: 800,
-                cursor: 'pointer', boxShadow: '3px 3px 0 #111111',
-              }}
-            >
-              Got it
-            </button>
-          </div>
-        </div>
       )}
     </div>
   );
@@ -387,22 +432,44 @@ function EditModal({
   shelves,
   onCancel,
   onSave,
+  onClose,
 }: {
   product: AdminProduct;
   shelves: ShelfLocation[];
   onCancel: () => void;
-  onSave: (patch: Partial<AdminProduct>) => void;
+  /** POST (create) or PATCH (edit) via the parent. Resolves true on success. */
+  onSave: (patch: ProductWrite, id: string) => Promise<boolean>;
+  onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(product.canonical_name);
   const [aliasesText, setAliasesText] = useState(
     product.aliases.filter(a => a !== product.canonical_name).join('\n')
   );
   const [category, setCategory] = useState(product.category ?? '');
   const [aisle, setAisle] = useState(product.latest_aisle);
+  const [busy, setBusy] = useState(false);
+
+  const canSave = name.trim().length > 0 && aisle.trim().length > 0 && !busy;
+
+  const submit = async () => {
+    if (!canSave) return;
+    setBusy(true);
+    // Store is scoped server-side — do NOT send store_id. Server parses
+    // `latest_aisle` (not `aisle`) for the shelf.
+    const ok = await onSave({
+      canonical_name: name.trim(),
+      aliases: aliasesText.split('\n').map(s => s.trim()).filter(Boolean),
+      category: category.trim() || undefined,
+      latest_aisle: aisle,
+    }, product._id);
+    setBusy(false);
+    if (ok) onClose();       // failure keeps the modal open; parent shows the error
+  };
 
   return (
     <div
-      onClick={onCancel}
+      onClick={busy ? undefined : onCancel}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -418,20 +485,22 @@ function EditModal({
         }}
       >
         <h3 style={{ margin: '0 0 12px', fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: -0.3 }}>
-          {product._id ? 'Edit product' : 'Add product'}
+          {product._id ? t('shelf_admin_edit_title') : t('shelf_admin_add_title')}
         </h3>
         <Field label="canonical_name">
           <input
             value={name}
             onChange={e => setName(e.target.value)}
+            disabled={busy}
             style={fieldStyle}
           />
         </Field>
-        <Field label="aliases (one per line)">
+        <Field label={t('shelf_admin_field_aliases')}>
           <textarea
             value={aliasesText}
             onChange={e => setAliasesText(e.target.value)}
             rows={5}
+            disabled={busy}
             style={{ ...fieldStyle, resize: 'vertical', fontFamily: 'inherit' }}
           />
         </Field>
@@ -439,14 +508,16 @@ function EditModal({
           <input
             value={category}
             onChange={e => setCategory(e.target.value)}
+            disabled={busy}
             style={fieldStyle}
-            placeholder="e.g. noodle, sauce, snack"
+            placeholder={t('shelf_admin_field_category_ph')}
           />
         </Field>
         <Field label="latest_aisle">
           <select
             value={aisle}
             onChange={e => setAisle(e.target.value)}
+            disabled={busy}
             style={fieldStyle}
           >
             {shelves.map(s => (
@@ -457,16 +528,12 @@ function EditModal({
           </select>
         </Field>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
-          <button onClick={onCancel} style={btnSecondary}>Cancel</button>
+          <button onClick={onCancel} disabled={busy} style={btnSecondary}>{t('shelf_admin_cancel')}</button>
           <button
-            onClick={() => onSave({
-              canonical_name: name,
-              aliases: aliasesText.split('\n').map(s => s.trim()).filter(Boolean),
-              category: category.trim() || undefined,
-              latest_aisle: aisle,
-            })}
-            style={btnPrimary}
-          >Save</button>
+            onClick={submit}
+            disabled={!canSave}
+            style={{ ...btnPrimary, opacity: canSave ? 1 : 0.55, cursor: canSave ? 'pointer' : 'not-allowed' }}
+          >{busy ? t('shelf_admin_saving') : t('shelf_admin_save')}</button>
         </div>
       </div>
     </div>

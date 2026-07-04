@@ -31,6 +31,9 @@ const priceIds = {
   creditsEnterprise: isCreem
     ? process.env.NEXT_PUBLIC_CREEM_PRODUCT_CREDITS_ENTERPRISE!
     : process.env.NEXT_PUBLIC_STRIPE_PRICE_CREDITS_ENTERPRISE!,
+  // What-Aisle: $99/mo subscription + $688 one-time setup fee (Stripe only)
+  whataisleMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_WHATAISLE_MONTHLY!,
+  whataisleSetup: process.env.NEXT_PUBLIC_STRIPE_PRICE_WHATAISLE_SETUP!,
 };
 
 /**
@@ -83,7 +86,9 @@ export const websiteConfig: WebsiteConfig = {
   },
   auth: {
     enableGoogleLogin: true,
-    enableGithubLogin: true,
+    // GitHub OAuth is meaningless for supermarket owners (PRD F-2) — UI only,
+    // server-side config is kept so existing linked accounts keep working
+    enableGithubLogin: false,
     enableCredentialLogin: true,
     enableDeleteUser: true,
   },
@@ -103,18 +108,20 @@ export const websiteConfig: WebsiteConfig = {
     },
   },
   blog: {
-    enable: true,
+    // hidden from nav/footer for What-Aisle (PRD F-6) — code kept
+    enable: false,
     paginationSize: 6,
     relatedPostsSize: 3,
   },
   docs: {
-    enable: true,
+    // hidden from nav/footer for What-Aisle (PRD F-6) — code kept
+    enable: false,
   },
   mail: {
     enable: true,
     provider: 'resend',
-    fromEmail: 'MkSaaS <support@example.com>',
-    supportEmail: 'MkSaaS <support@example.com>',
+    fromEmail: 'What-Aisle <support@what-aisle.com>',
+    supportEmail: 'What-Aisle <support@what-aisle.com>',
   },
   newsletter: {
     enable: true,
@@ -134,8 +141,33 @@ export const websiteConfig: WebsiteConfig = {
   },
   price: {
     plans: {
+      // What-Aisle: ONE checkout = $99/mo subscription + $688 one-time
+      // setup fee ("white-glove onboarding", PRD F-3 / 8.3)
+      whataisle: {
+        id: 'whataisle',
+        prices: [
+          {
+            type: PaymentTypes.SUBSCRIPTION,
+            priceId: priceIds.whataisleMonthly,
+            amount: 9900,
+            currency: 'USD',
+            interval: PlanIntervals.MONTH,
+          },
+        ],
+        setupFeePriceId: priceIds.whataisleSetup,
+        setupFeeAmount: 68800,
+        isFree: false,
+        isLifetime: false,
+        popular: true,
+        credits: {
+          enable: false,
+          amount: 0,
+        },
+      },
+      // Template plans below are hidden (disabled), not deleted (PRD F-6)
       free: {
         id: 'free',
+        disabled: true,
         prices: [],
         isFree: true,
         isLifetime: false,
@@ -147,6 +179,7 @@ export const websiteConfig: WebsiteConfig = {
       },
       pro: {
         id: 'pro',
+        disabled: true,
         prices: [
           {
             type: PaymentTypes.SUBSCRIPTION,
@@ -165,7 +198,6 @@ export const websiteConfig: WebsiteConfig = {
         ],
         isFree: false,
         isLifetime: false,
-        popular: true,
         credits: {
           enable: true,
           amount: 1000,
@@ -174,6 +206,7 @@ export const websiteConfig: WebsiteConfig = {
       },
       lifetime: {
         id: 'lifetime',
+        disabled: true,
         prices: [
           {
             type: PaymentTypes.ONE_TIME,

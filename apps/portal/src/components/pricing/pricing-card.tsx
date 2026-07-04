@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/card';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useMounted } from '@/hooks/use-mounted';
-import { useLocalePathname } from '@/i18n/navigation';
+import { LocaleLink, useLocalePathname } from '@/i18n/navigation';
 import { formatPrice } from '@/lib/formatter';
 import { cn } from '@/lib/utils';
 import {
@@ -153,6 +153,15 @@ export function PricingCard({
           {priceLabel && <span className="text-2xl">{priceLabel}</span>}
         </div>
 
+        {/* show one-time setup fee if the plan has one */}
+        {!plan.isFree && price && plan.setupFeeAmount ? (
+          <p className="text-sm text-muted-foreground">
+            {t('setupFee', {
+              price: formatPrice(plan.setupFeeAmount, price.currency),
+            })}
+          </p>
+        ) : null}
+
         <CardDescription>
           <p className="text-sm">{plan.description}</p>
         </CardDescription>
@@ -177,6 +186,12 @@ export function PricingCard({
           text-blue-700 dark:text-blue-100 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-700"
           >
             {t('yourCurrentPlan')}
+          </Button>
+        ) : plan.setupFeePriceId ? (
+          // Plans with a setup fee need a store name first — the checkout is
+          // started from the store name checker in the hero (PRD F-1/F-3)
+          <Button asChild variant="default" className="mt-4 w-full">
+            <LocaleLink href="/#hero">{t('getStarted')}</LocaleLink>
           </Button>
         ) : isPaidPlan ? (
           mounted && currentUser ? (

@@ -1,8 +1,8 @@
 {
   "Metadata": {
-    "name": "MkSaaS Demo",
-    "title": "MkSaaS - The Best AI SaaS Boilerplate",
-    "description": "MkSaaS is the best AI SaaS boilerplate. Make AI SaaS in days, simply and effortlessly"
+    "name": "What-Aisle",
+    "title": "What-Aisle - AI aisle finder for your supermarket",
+    "description": "Give your supermarket its own AI-powered 'which aisle is it in?' app. Customers find any product in 3 seconds at yourstore.what-aisle.com."
   },
   "Common": {
     "premium": "Premium",
@@ -61,7 +61,8 @@
       "getLifetimeAccess": "Get Lifetime Access",
       "getStarted": "Get Started",
       "notAvailable": "Not Available",
-      "daysTrial": "{days}-day free trial"
+      "daysTrial": "{days}-day free trial",
+      "setupFee": "+ {price} one-time setup fee"
     },
     "CheckoutButton": {
       "loading": "Loading...",
@@ -69,6 +70,18 @@
     }
   },
   "PricePlans": {
+    "whataisle": {
+      "name": "What-Aisle",
+      "description": "Everything your supermarket needs: white-glove setup plus the AI aisle finder subscription",
+      "features": {
+        "feature-1": "Your own store address: yourstore.what-aisle.com",
+        "feature-2": "AI product search in any language — no login for shoppers",
+        "feature-3": "Staff photo upload keeps shelves up to date",
+        "feature-4": "White-glove setup: we build your shelf map from one video",
+        "feature-5": "Interactive floor plan with aisle highlighting",
+        "feature-6": "Email support — cancel anytime"
+      }
+    },
     "free": {
       "name": "Free",
       "description": "Basic features for personal use",
@@ -751,17 +764,27 @@
       "email": "Email: {email}",
       "message": "Message: {message}",
       "subject": "Contact Message from Website"
+    },
+    "storeVideoInstructions": {
+      "subject": "Next step: upload your store video",
+      "title": "🎉 Payment received — {storeName} is almost ready!",
+      "body": "Your store address {domain} is reserved. To build your shelf map, we need one video of your store:",
+      "step1": "1. Walk through your store with your phone camera on.",
+      "step2": "2. Film every aisle slowly, making sure shelf labels are readable.",
+      "step3": "3. Upload the video (up to 2GB) in your dashboard — or paste a drive link.",
+      "outro": "We will build your shelf map and floor plan from the video and notify you when your store goes live (usually within a few days).",
+      "uploadVideo": "Upload your store video"
     }
   },
   "HomePage": {
-    "title": "MkSaaS",
-    "description": "Make AI SaaS in days, simply and effortlessly",
+    "title": "What-Aisle",
+    "description": "AI-powered aisle finder for your supermarket",
     "hero": {
-      "title": "Make AI SaaS in days, simply and effortlessly",
-      "description": "The is a demo website built with MkSaaS, a Next.js SaaS boilerplate to help you build your AI SaaS faster and better.",
-      "introduction": "Introducing MkSaaS Boilerplate",
+      "title": "Customers find any product in 3 seconds",
+      "description": "What-Aisle gives your supermarket its own AI-powered aisle finder at yourstore.what-aisle.com. Shoppers search in any language and instantly see which aisle a product is on — no app install, no login, no more \"excuse me, where is...\"",
+      "introduction": "$688 setup + $99/mo — you only shoot one video",
       "primary": "Get Started",
-      "secondary": "See Demo"
+      "secondary": "See pricing"
     },
     "logocloud": {
       "title": "Your favorite companies are our partners"
@@ -997,6 +1020,17 @@
       "description": "MkSaaS lets you make AI SaaS in days, simply and effortlessly",
       "primaryButton": "Get Started",
       "secondaryButton": "See Demo"
+    },
+    "storeChecker": {
+      "placeholder": "Enter your supermarket name...",
+      "hint": "Check if your store address is available — free, no signup needed",
+      "checking": "Checking...",
+      "available": "Available!",
+      "taken": "Already taken, try another name",
+      "reserved": "This name is reserved, try another one",
+      "invalid": "Use at least 3 letters or numbers",
+      "cta": "Claim your store",
+      "checkoutFailed": "Could not start checkout, please try again"
     }
   }
 }

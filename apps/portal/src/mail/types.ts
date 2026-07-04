@@ -2,6 +2,7 @@ import type { MailConfig } from '@/types';
 import type { Locale, Messages } from 'next-intl';
 import ContactMessage from './templates/contact-message';
 import ForgotPassword from './templates/forgot-password';
+import StoreVideoInstructions from './templates/store-video-instructions';
 import SubscribeNewsletter from './templates/subscribe-newsletter';
 import VerifyEmail from './templates/verify-email';
 
@@ -16,6 +17,7 @@ export const EmailTemplates = {
   verifyEmail: VerifyEmail,
   subscribeNewsletter: SubscribeNewsletter,
   contactMessage: ContactMessage,
+  storeVideoInstructions: StoreVideoInstructions,
 } as const;
 
 /**

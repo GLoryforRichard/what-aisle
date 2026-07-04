@@ -15,6 +15,14 @@ import {
   PAYMENT_RECORD_RETRY_DELAY,
 } from '@/lib/constants';
 import { findPlanByPlanId, findPriceInPlan } from '@/lib/price-plan';
+import {
+  onStoreChargeRefunded,
+  onStoreCheckoutCompleted,
+  onStoreCheckoutExpired,
+  onStoreInvoicePaid,
+  onStoreInvoicePaymentFailed,
+  onStoreSubscriptionDeleted,
+} from '@/lib/store-lifecycle';
 import { sendPaymentNotification } from '@/notification';
 import { desc, eq } from 'drizzle-orm';
 import { Stripe } from 'stripe';
@@ -230,23 +238,48 @@ export class StripeProvider implements PaymentProvider {
       };
 
       // Set up the line items
-      const lineItems = [
+      const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
         {
           price: priceId,
           quantity: 1,
         },
       ];
 
+      // Mixed checkout (setup-fee pattern): add an optional one-time price
+      // alongside the recurring price. The one-time item is billed on the
+      // first invoice of the subscription.
+      const setupFeePriceId = params.setupFeePriceId ?? plan.setupFeePriceId;
+      const hasSetupFee = !!setupFeePriceId;
+      if (hasSetupFee) {
+        lineItems.push({
+          price: setupFeePriceId,
+          quantity: 1,
+        });
+      }
+
       // Create checkout session parameters
+      // NOTE: a checkout with a setup fee is always a subscription checkout,
+      // Stripe only allows mixing one-time line items in 'subscription' mode.
       const checkoutParams: Stripe.Checkout.SessionCreateParams = {
         line_items: lineItems,
         mode:
-          price.type === PaymentTypes.SUBSCRIPTION ? 'subscription' : 'payment',
+          price.type === PaymentTypes.SUBSCRIPTION || hasSetupFee
+            ? 'subscription'
+            : 'payment',
         success_url: successUrl ?? '',
         cancel_url: cancelUrl ?? '',
         metadata: customMetadata,
         allow_promotion_codes: price.allowPromotionCode ?? false,
       };
+
+      // Collect business tax IDs (B2B / reverse-charge support, PRD 8.5).
+      // Stripe Tax stays in monitoring-only mode for now, so automatic_tax
+      // is intentionally NOT enabled here.
+      if (hasSetupFee) {
+        checkoutParams.tax_id_collection = { enabled: true };
+        // Required by Stripe when tax_id_collection is used with an existing customer
+        checkoutParams.customer_update = { name: 'auto' };
+      }
 
       // Add customer to checkout session
       checkoutParams.customer = customerId;
@@ -259,7 +292,7 @@ export class StripeProvider implements PaymentProvider {
       }
 
       // Add payment intent data for one-time payments
-      if (price.type === PaymentTypes.ONE_TIME) {
+      if (price.type === PaymentTypes.ONE_TIME && !hasSetupFee) {
         checkoutParams.payment_intent_data = {
           metadata: customMetadata,
         };
@@ -270,7 +303,9 @@ export class StripeProvider implements PaymentProvider {
       }
 
       // Add subscription data for recurring payments
-      if (price.type === PaymentTypes.SUBSCRIPTION) {
+      // (metadata is duplicated on the subscription so webhook handlers can
+      // read it from both the session and the subscription object)
+      if (price.type === PaymentTypes.SUBSCRIPTION || hasSetupFee) {
         // Initialize subscription_data with metadata
         checkoutParams.subscription_data = {
           metadata: customMetadata,
@@ -459,6 +494,8 @@ export class StripeProvider implements PaymentProvider {
           }
           case 'customer.subscription.deleted': {
             await this.onDeleteSubscription(stripeSubscription);
+            // What-Aisle: subscription gone → suspend the store
+            await onStoreSubscriptionDeleted(stripeSubscription);
             break;
           }
         }
@@ -468,6 +505,14 @@ export class StripeProvider implements PaymentProvider {
           case 'invoice.paid': {
             const invoice = event.data.object as Stripe.Invoice;
             await this.onInvoicePaid(invoice);
+            // What-Aisle: clear dunning timer / restore suspended store
+            await onStoreInvoicePaid(invoice);
+            break;
+          }
+          case 'invoice.payment_failed': {
+            // What-Aisle: start dunning timer, suspend after 7 days
+            const invoice = event.data.object as Stripe.Invoice;
+            await onStoreInvoicePaymentFailed(invoice);
             break;
           }
         }
@@ -476,7 +521,17 @@ export class StripeProvider implements PaymentProvider {
         if (eventType === 'checkout.session.completed') {
           const session = event.data.object as Stripe.Checkout.Session;
           await this.onCheckoutCompleted(session);
+          // What-Aisle: provision the store (awaiting_video, Stores App, email)
+          await onStoreCheckoutCompleted(session);
+        } else if (eventType === 'checkout.session.expired') {
+          // What-Aisle: release the pending_payment slug lock
+          const session = event.data.object as Stripe.Checkout.Session;
+          await onStoreCheckoutExpired(session);
         }
+      } else if (eventType === 'charge.refunded') {
+        // What-Aisle: full refund → store canceled (terminal, PRD 8.4)
+        const charge = event.data.object as Stripe.Charge;
+        await onStoreChargeRefunded(charge);
       }
     } catch (error) {
       console.error('handle webhook event error:', error);

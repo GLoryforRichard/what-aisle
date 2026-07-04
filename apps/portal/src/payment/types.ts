@@ -97,6 +97,8 @@ export interface PricePlan {
   popular?: boolean;                 // Whether to mark this plan as popular in UI
   disabled?: boolean;                // Whether to disable this plan in UI
   credits?: Credits;                 // Credits configuration for this plan
+  setupFeePriceId?: string;          // Optional one-time setup fee price (Stripe price ID), charged on the first invoice of a subscription checkout
+  setupFeeAmount?: number;           // Setup fee amount in cents, for display purposes only
 }
 
 /**
@@ -151,6 +153,7 @@ export interface CreateCheckoutParams {
   cancelUrl?: string;
   metadata?: Record<string, string>;
   locale?: Locale;
+  setupFeePriceId?: string;          // Optional override for the plan-level setup fee price (one-time line item added to a subscription checkout)
 }
 
 /**

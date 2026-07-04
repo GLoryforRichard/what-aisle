@@ -117,13 +117,7 @@ export function useNavbarLinks(): NestedMenuItem[] {
           href: Routes.Changelog,
           external: false,
         },
-        {
-          title: t('pages.items.ai.title'),
-          description: t('pages.items.ai.description'),
-          icon: <WandSparklesIcon className="size-4 shrink-0" />,
-          href: Routes.Ai,
-          external: false,
-        },
+        // AI demo pages hidden for What-Aisle (PRD F-6) — code kept
         {
           title: t('pages.items.cookiePolicy.title'),
           description: t('pages.items.cookiePolicy.description'),

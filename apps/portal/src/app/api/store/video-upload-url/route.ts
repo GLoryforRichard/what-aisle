@@ -101,7 +101,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const key = buildVideoKey(store.slug, filename);
 
   try {
-    const uploadUrl = await presignVideoUpload(key, contentType);
+    const uploadUrl = await presignVideoUpload(key, contentType, sizeBytes);
     return NextResponse.json({ uploadUrl, key });
   } catch (error) {
     console.error('[video-upload-url] presign failed:', error);

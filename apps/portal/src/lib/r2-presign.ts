@@ -81,17 +81,26 @@ export function buildVideoKey(slug: string, filename: string): string {
 }
 
 /**
- * Presign a single PUT for `key` with the given content type.
- * The browser must send the SAME Content-Type header on the PUT.
+ * Presign a single PUT for `key` with the given content type and exact size.
+ *
+ * `ContentLength` is signed into the URL, so R2/S3 rejects any body whose
+ * length differs from `sizeBytes` — this closes the "declare 1KB, upload 5GB"
+ * cost-abuse hole (the route already validates sizeBytes <= MAX_VIDEO_BYTES
+ * before calling this, so the signed length is always within the cap).
+ *
+ * The browser must send the SAME Content-Type header and a body of exactly
+ * `sizeBytes` on the PUT, or the upload fails.
  */
 export async function presignVideoUpload(
   key: string,
-  contentType: string
+  contentType: string,
+  sizeBytes: number
 ): Promise<string> {
   const command = new PutObjectCommand({
     Bucket: getBucket(),
     Key: key,
     ContentType: contentType,
+    ContentLength: sizeBytes,
   });
   return getSignedUrl(getR2Client(), command, {
     expiresIn: UPLOAD_URL_TTL_SECONDS,

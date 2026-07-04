@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getDb } from '@/lib/mongodb';
+import { requireStore } from '@/lib/store-context';
 import { adminWriteGuard } from '@/lib/admin-guard';
 
 export const runtime = 'nodejs';
@@ -30,6 +31,11 @@ export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
+  // passcode cookie auth, PRD F-10).
+  const gate = await requireStore(req);
+  if (!gate.ok) return gate.response;
+  const storeId = gate.store.slug;
   const locked = adminWriteGuard();
   if (locked) return locked;
   const { id } = await ctx.params;
@@ -43,7 +49,8 @@ export async function PATCH(
     const db = await getDb();
     const col = db.collection('products');
 
-    const existing = await col.findOne({ _id: objId });
+    // Tenant-scoped: an id belonging to another store reads as "not found".
+    const existing = await col.findOne({ _id: objId, store_id: storeId });
     if (!existing) {
       return NextResponse.json({ ok: false, error: 'not found' }, { status: 404 });
     }
@@ -65,8 +72,8 @@ export async function PATCH(
       update.evidence_count = Math.max(0, Math.floor(body.evidence_count));
     }
 
-    await col.updateOne({ _id: objId }, { $set: update });
-    const fresh = await col.findOne({ _id: objId }, { projection: { embedding: 0 } });
+    await col.updateOne({ _id: objId, store_id: storeId }, { $set: update });
+    const fresh = await col.findOne({ _id: objId, store_id: storeId }, { projection: { embedding: 0 } });
     return NextResponse.json({
       ok: true,
       product: fresh ? { ...fresh, _id: fresh._id.toString() } : null,
@@ -80,9 +87,14 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
+  // passcode cookie auth, PRD F-10).
+  const gate = await requireStore(req);
+  if (!gate.ok) return gate.response;
+  const storeId = gate.store.slug;
   const locked = adminWriteGuard();
   if (locked) return locked;
   const { id } = await ctx.params;
@@ -92,7 +104,7 @@ export async function DELETE(
   }
   try {
     const db = await getDb();
-    const res = await db.collection('products').deleteOne({ _id: objId });
+    const res = await db.collection('products').deleteOne({ _id: objId, store_id: storeId });
     return NextResponse.json({ ok: true, deleted: res.deletedCount });
   } catch (err) {
     return NextResponse.json({

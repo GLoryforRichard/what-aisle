@@ -314,6 +314,8 @@ suspended ──(invoice.paid 恢复)──▶ live
 
 ### 6.4 改造涉及的关键文件清单
 
+> 仓库：**`github.com/GLoryforRichard/what-aisle`**（monorepo，main 分支）。路径映射：`wherebear/` → **`apps/stores/`**，`mksaas/` → **`apps/portal/`**；下表沿用原名标注。生产 wherebear 原仓库保持不动。
+
 | 文件 | 改造 |
 |---|---|
 | `wherebear/proxy.ts`（新建） | Host → slug 解析、保留字、头注入 |

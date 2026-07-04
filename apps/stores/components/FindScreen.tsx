@@ -9,6 +9,7 @@ import LanguageToggle from './LanguageToggle';
 import { AgentEvent } from '@/lib/agents/types';
 import { useTranslation } from '@/lib/i18n';
 import { useVoiceRecorder, getVoiceSupported } from '@/lib/voice';
+import { useStoreConfig } from '@/lib/store-config-client';
 import StoreMap from './StoreMap';
 
 type Screen = 'home' | 'snap' | 'progress' | 'find';
@@ -144,8 +145,14 @@ function viaTag(result: unknown): 'mcp' | 'sdk' | 'driver' | null {
  */
 function ResultMap({ aisles }: { aisles: string[] }) {
   const { t } = useTranslation();
+  const config = useStoreConfig();
   const single = aisles.length === 1;
   const [open, setOpen] = useState<string | null>(single ? aisles[0] : null);
+
+  const rects = config?.floorplan.rects ?? [];
+  const mapViewBox = config?.floorplan.viewBox;
+  const mapLabels = config?.floorplan.labels;
+  if (rects.length === 0) return null; // no floorplan configured / still loading
 
   return (
     <div style={{ marginTop: 16 }}>
@@ -162,7 +169,7 @@ function ResultMap({ aisles }: { aisles: string[] }) {
           marginTop: 8, border: `1px solid ${C.border}`, borderRadius: 12,
           background: C.white, padding: '8px 8px 4px',
         }}>
-          <StoreMap highlight={aisles[0]} />
+          <StoreMap rects={rects} viewBox={mapViewBox} labels={mapLabels} highlight={aisles[0]} />
         </div>
       ) : (
         <>
@@ -188,7 +195,7 @@ function ResultMap({ aisles }: { aisles: string[] }) {
                   </button>
                   {isOpen && (
                     <div style={{ padding: '0 8px 8px' }}>
-                      <StoreMap highlight={code} />
+                      <StoreMap rects={rects} viewBox={mapViewBox} labels={mapLabels} highlight={code} />
                     </div>
                   )}
                 </div>

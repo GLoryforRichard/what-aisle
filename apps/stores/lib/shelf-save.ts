@@ -27,6 +27,7 @@ import { DetectedProduct } from '@/lib/gemini';
 import { AgentEvent } from '@/lib/agents/types';
 import { execExpandAliasesBatch } from '@/lib/agents/tools-a';
 import { buildShelfContext } from '@/lib/shelves';
+import { getStoreBySlug } from '@/lib/store-context';
 import { UsageTotals, EMPTY_USAGE } from '@/lib/cost';
 
 // Rough character → token ratio for the rapid cost estimate we emit during
@@ -38,6 +39,9 @@ const ALIAS_OUTPUT_TOKENS_PER_PRODUCT = 35; // 3-4 Chinese aliases, ~10 tokens e
 const VOYAGE_TOKENS_PER_SEARCH_TEXT = 30;   // canonical + 3-4 aliases joined
 
 export interface ShelfSaveInput {
+  /** Tenant (store slug). Explicit parameter — this is a short, non-LLM call
+   *  chain, so we don't use AsyncLocalStorage here (PRD F-8). */
+  storeId: string;
   aisle: string;
   products: DetectedProduct[];
 }
@@ -127,15 +131,19 @@ export async function* saveShelfDirect(
   const names = items.map(p => p.canonical_name);
   const existingDocs = await db
     .collection('products')
-    .find({ canonical_name: { $in: names } }, { projection: { canonical_name: 1 } })
+    .find(
+      { store_id: input.storeId, canonical_name: { $in: names } },
+      { projection: { canonical_name: 1 } }
+    )
     .toArray();
   const existingNames = new Set(existingDocs.map(d => d.canonical_name as string));
 
-  // STEP 3: one bulkWrite with all upserts.
+  // STEP 3: one bulkWrite with all upserts. The unique key is
+  // {store_id, canonical_name} — two stores can each stock "Shin Ramyun".
   const now = new Date();
   const ops: AnyBulkWriteOperation<Document>[] = items.map(p => ({
     updateOne: {
-      filter: { canonical_name: p.canonical_name },
+      filter: { store_id: input.storeId, canonical_name: p.canonical_name },
       update: {
         $set: {
           latest_aisle: input.aisle,
@@ -153,6 +161,7 @@ export async function* saveShelfDirect(
         // all instead of only the most recent.
         $addToSet: { aisles: input.aisle },
         $setOnInsert: {
+          store_id: input.storeId,
           canonical_name: p.canonical_name,
           aliases: [p.canonical_name],
           search_text: p.canonical_name,
@@ -206,6 +215,7 @@ export async function* saveShelfDirect(
     args: { aisle: input.aisle, products_detected: names },
   };
   await db.collection('shelf_evidence').insertOne({
+    store_id: input.storeId,
     photo_url: '',
     aisle: input.aisle,
     products_detected: names,
@@ -263,7 +273,9 @@ export async function enhanceShelfBackground(input: ShelfSaveInput): Promise<voi
     const items = normalizeShelfProducts(input.products);
     if (items.length === 0) return;
 
-    const shelfContext = buildShelfContext(input.aisle);
+    // Shelf taxonomy is per-store — look it up via the 60 s store cache.
+    const store = await getStoreBySlug(input.storeId);
+    const shelfContext = buildShelfContext(store?.shelves ?? [], input.aisle);
     const { aliases_by_name } = await execExpandAliasesBatch({
       canonical_names: items.map(p => p.canonical_name),
       shelf_context: shelfContext,
@@ -279,7 +291,7 @@ export async function enhanceShelfBackground(input: ShelfSaveInput): Promise<voi
       );
       ops.push({
         updateOne: {
-          filter: { canonical_name: item.canonical_name },
+          filter: { store_id: input.storeId, canonical_name: item.canonical_name },
           update: {
             $set: {
               aliases: finalAliases,

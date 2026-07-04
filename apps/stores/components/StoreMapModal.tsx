@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { C, FONT } from '@/lib/theme';
 import { getShelf } from '@/lib/shelves';
+import { useStoreConfig } from '@/lib/store-config-client';
 import StoreMap from './StoreMap';
 import Icon from './Icon';
 
@@ -14,13 +15,14 @@ interface StoreMapModalProps {
 
 export default function StoreMapModal({ current, onConfirm, onClose }: StoreMapModalProps) {
   const [pending, setPending] = useState(current);
+  const config = useStoreConfig();
 
   const handleSelect = (code: string) => {
     setPending(code);
     onConfirm(code);
   };
 
-  const shelf = getShelf(pending);
+  const shelf = getShelf(config?.shelves ?? [], pending);
 
   return (
     <div
@@ -79,7 +81,13 @@ export default function StoreMapModal({ current, onConfirm, onClose }: StoreMapM
 
         {/* Map scroll area */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-          <StoreMap selected={pending} onSelect={handleSelect} />
+          <StoreMap
+            rects={config?.floorplan.rects ?? []}
+            viewBox={config?.floorplan.viewBox}
+            labels={config?.floorplan.labels}
+            selected={pending}
+            onSelect={handleSelect}
+          />
         </div>
       </div>
     </div>

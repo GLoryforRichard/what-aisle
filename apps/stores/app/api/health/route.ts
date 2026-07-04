@@ -1,21 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 
+/**
+ * Liveness probe. Intentionally GLOBAL (works on any host, no tenant needed)
+ * but returns only aggregate totals — never any per-store data or store list.
+ */
 export async function GET() {
   try {
     const db = await getDb();
-    const collections = await db.listCollections().toArray();
-    const names = collections.map(c => c.name).sort();
 
     const counts: Record<string, number> = {};
-    for (const name of ['shelf_evidence', 'products', 'search_logs']) {
+    for (const name of ['stores', 'products', 'shelf_evidence', 'search_history']) {
       counts[name] = await db.collection(name).countDocuments();
     }
 
     return NextResponse.json({
       ok: true,
       db: db.databaseName,
-      collections: names,
       counts,
     });
   } catch (err) {

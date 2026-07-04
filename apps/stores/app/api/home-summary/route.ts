@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
+import { requireStore } from '@/lib/store-context';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,17 +11,20 @@ export const dynamic = 'force-dynamic';
  * Best-effort: any failure returns ok:false and the home cards fall back to
  * dashes.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireStore(req);
+  if (!gate.ok) return gate.response;
+  const storeId = gate.store.slug;
   try {
     const db = await getDb();
     const dayStart = new Date();
     dayStart.setUTCHours(0, 0, 0, 0);
 
     const [products, todaySearches, recent] = await Promise.all([
-      db.collection('products').countDocuments(),
-      db.collection('search_history').countDocuments({ ts: { $gte: dayStart } }),
+      db.collection('products').countDocuments({ store_id: storeId }),
+      db.collection('search_history').countDocuments({ store_id: storeId, ts: { $gte: dayStart } }),
       db.collection('search_history')
-        .find({}, { projection: { found: 1, product: 1, ts: 1 } })
+        .find({ store_id: storeId }, { projection: { found: 1, product: 1, ts: 1 } })
         .sort({ ts: -1 })
         .limit(50)
         .toArray(),

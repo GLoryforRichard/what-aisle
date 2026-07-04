@@ -7,8 +7,11 @@ function buildSearchText(canonicalName: string, aliases: string[]): string {
   return Array.from(new Set(all.map(s => s.trim()).filter(Boolean))).join(' · ');
 }
 
+/** Legacy helper (live save path is lib/shelf-save.ts). Takes an explicit
+ *  tenant `storeId` — canonical_name is only unique per store. */
 export async function upsertDetectedProducts(
   db: Db,
+  storeId: string,
   detected: DetectedProduct[],
   aisle: string
 ): Promise<{ upserted: number; updated: number }> {
@@ -21,7 +24,7 @@ export async function upsertDetectedProducts(
     const canonical = item.name.trim();
     if (!canonical) continue;
 
-    const existing = await col.findOne({ canonical_name: canonical });
+    const existing = await col.findOne({ store_id: storeId, canonical_name: canonical });
 
     if (existing) {
       await col.updateOne(
@@ -35,6 +38,7 @@ export async function upsertDetectedProducts(
     } else {
       const aliases = [canonical];
       await col.insertOne({
+        store_id: storeId,
         canonical_name: canonical,
         aliases,
         search_text: buildSearchText(canonical, aliases),

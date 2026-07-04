@@ -21,19 +21,24 @@ export async function register() {
       ]);
       agentMod.getSearchAgent();
       await Promise.allSettled([
-        agentMod.getMongoMcpToolset()?.getTools(),
         mcpMod.listMongoMcpTools(),
         dbMod.getDb(),
       ]);
       // One throwaway end-to-end search: warms the Vertex connections (app
       // genai client + ADK's internal one) so the first REAL search runs at
       // steady-state speed. Bypasses the API route → nothing is logged to
-      // search_history.
-      const runMod = await import('@/lib/agents/adk/run-search');
-      for await (const ev of runMod.runAgentBAdk({ query: 'warmup ping' })) {
-        if (ev.type === 'done' || ev.type === 'error') break;
-      }
-      console.log('[warmup] search agent + MCP toolset + Mongo + Vertex ready');
+      // search_history. Runs under a synthetic tenant that matches no store,
+      // so retrieval is exercised but returns zero cross-store data.
+      const [runMod, tenantMod] = await Promise.all([
+        import('@/lib/agents/adk/run-search'),
+        import('@/lib/tenant-context'),
+      ]);
+      await tenantMod.runWithTenant('__warmup__', async () => {
+        for await (const ev of runMod.runAgentBAdk({ query: 'warmup ping' })) {
+          if (ev.type === 'done' || ev.type === 'error') break;
+        }
+      });
+      console.log('[warmup] search agent + MCP + Mongo + Vertex ready');
     } catch (err) {
       console.warn('[warmup] non-fatal:', err instanceof Error ? err.message : err);
     }

@@ -1,5 +1,6 @@
 import { UsageTotals, EMPTY_USAGE, addUsage } from '@/lib/cost';
 import { getDb } from '@/lib/mongodb';
+import { getTenantStoreId } from '@/lib/tenant-context';
 import { AgentEvent } from './types';
 import {
   execUnderstandIntent,
@@ -81,7 +82,8 @@ export async function* runAgentB(input: AgentBInput): AsyncGenerator<AgentEvent>
     if (!c.canonical_name) return;
     try {
       const enriched = await db.collection('products').findOne(
-        { canonical_name: c.canonical_name },
+        // Tenant-scoped (canonical_name is only unique per store).
+        { store_id: getTenantStoreId(), canonical_name: c.canonical_name },
         { projection: { thumbnail: 1, aisles: 1, latest_aisle: 1 } }
       );
       if (enriched) {

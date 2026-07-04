@@ -23,11 +23,14 @@ export interface DailyOpStat {
 // worker's day, not UTC.
 const TZ = 'America/Toronto';
 
-export async function logOp(type: OpType, usage: Partial<UsageTotals>): Promise<void> {
+/** `storeId` is the tenant slug — every op row is a per-store cost ledger
+ *  entry (PRD F-8: op_events feeds future per-store AI-cost metering). */
+export async function logOp(storeId: string, type: OpType, usage: Partial<UsageTotals>): Promise<void> {
   try {
     const full = addUsage({ ...EMPTY_USAGE }, usage);
     const db = await getDb();
     await db.collection('op_events').insertOne({
+      store_id: storeId,
       type,
       ts: new Date(),
       usage: full,
@@ -38,12 +41,12 @@ export async function logOp(type: OpType, usage: Partial<UsageTotals>): Promise<
   }
 }
 
-/** Per-day, per-type counts + summed cost over the last `days` days. */
-export async function getDailyStats(days = 30): Promise<DailyOpStat[]> {
+/** Per-day, per-type counts + summed cost over the last `days` days, for one store. */
+export async function getDailyStats(storeId: string, days = 30): Promise<DailyOpStat[]> {
   const db = await getDb();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const rows = await db.collection('op_events').aggregate([
-    { $match: { ts: { $gte: since } } },
+    { $match: { store_id: storeId, ts: { $gte: since } } },
     {
       $group: {
         _id: {
@@ -101,6 +104,7 @@ export interface SearchLogEntry {
 
 /** Record one finished search. `result` is Agent B's finish `data` (or null). */
 export async function logSearchHistory(
+  storeId: string,
   query: string,
   result: Record<string, unknown> | null,
 ): Promise<string | null> {
@@ -123,6 +127,7 @@ export async function logSearchHistory(
     }));
     const db = await getDb();
     const res = await db.collection('search_history').insertOne({
+      store_id: storeId,
       query,
       found: !!product,
       product: product?.canonical_name ?? null,
@@ -140,9 +145,13 @@ export async function logSearchHistory(
   }
 }
 
-export async function getRecentSearches(limit = 100): Promise<SearchLogEntry[]> {
+export async function getRecentSearches(storeId: string, limit = 100): Promise<SearchLogEntry[]> {
   const db = await getDb();
-  const rows = await db.collection('search_history').find({}).sort({ ts: -1 }).limit(limit).toArray();
+  const rows = await db.collection('search_history')
+    .find({ store_id: storeId })
+    .sort({ ts: -1 })
+    .limit(limit)
+    .toArray();
   return rows.map(r => ({
     id: r._id.toString(),
     query: (r.query as string) ?? '',
@@ -157,12 +166,13 @@ export async function getRecentSearches(limit = 100): Promise<SearchLogEntry[]> 
   }));
 }
 
-/** Record worker feedback on a logged search (idempotent — overwrites). */
-export async function setSearchFeedback(id: string, feedback: SearchFeedback): Promise<boolean> {
+/** Record worker feedback on a logged search (idempotent — overwrites).
+ *  Tenant-scoped so store A can't rate store B's log rows by guessing ids. */
+export async function setSearchFeedback(storeId: string, id: string, feedback: SearchFeedback): Promise<boolean> {
   try {
     const db = await getDb();
     const res = await db.collection('search_history').updateOne(
-      { _id: new ObjectId(id) },
+      { _id: new ObjectId(id), store_id: storeId },
       { $set: { feedback, feedback_at: new Date() } },
     );
     return res.matchedCount > 0;

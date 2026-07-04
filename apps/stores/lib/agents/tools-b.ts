@@ -2,9 +2,10 @@ import { Db } from 'mongodb';
 import { Type, FunctionDeclaration, ThinkingLevel } from '@google/genai';
 import { generateContentWithHedge, VISION_MODEL } from '@/lib/gemini';
 import { UsageTotals, extractGeminiUsage } from '@/lib/cost';
-import { SearchLog } from '@/lib/types';
 import { mcpAggregate, mcpInsertMany } from '@/lib/mcp/mongo-ops';
-import { SHELVES } from '@/lib/shelves';
+import { getTenantStoreId, getTenantStoreIdOrNull } from '@/lib/tenant-context';
+import { getStoreBySlug } from '@/lib/store-context';
+import { ShelfLocation } from '@/lib/shelves';
 
 // ─────────────────────────────────────────────────────────────
 // Tool declarations
@@ -195,6 +196,12 @@ export async function execVectorSearch(
   _db: Db,
   args: { query_text: string; limit?: number }
 ): Promise<{ hits: VectorHit[]; via: 'mcp' | 'sdk' }> {
+  // SECURITY (PRD F-8): tenant comes from AsyncLocalStorage set at the API
+  // entrypoint — NEVER from a tool argument (tool args are LLM-generated).
+  // getTenantStoreId() throws outside a tenant scope, so this fails closed.
+  // Requires `{type:"filter", path:"store_id"}` in the Atlas vector_index
+  // definition (docs/SAAS-SETUP.md).
+  const storeId = getTenantStoreId();
   const limit = Math.min(Math.max(args.limit ?? 5, 1), 10);
   const result = await mcpAggregate<VectorHit>({
     collection: 'products',
@@ -206,6 +213,7 @@ export async function execVectorSearch(
           query: args.query_text,
           numCandidates: 100,
           limit,
+          filter: { store_id: storeId },
         },
       },
       {
@@ -237,6 +245,10 @@ export async function execVectorSearch(
 export async function execTextSearch(
   args: { query_text: string; limit?: number }
 ): Promise<{ hits: VectorHit[]; via: 'mcp' | 'sdk' }> {
+  // SECURITY (PRD F-8): same ALS-sourced tenant filter as execVectorSearch.
+  // `equals` on store_id needs the field mapped as type `token` in the
+  // text_index definition — explicit mapping, NOT dynamic (docs/SAAS-SETUP.md).
+  const storeId = getTenantStoreId();
   const limit = Math.min(Math.max(args.limit ?? 10, 1), 20);
   try {
     const result = await mcpAggregate<VectorHit>({
@@ -245,10 +257,19 @@ export async function execTextSearch(
         {
           $search: {
             index: 'text_index',
-            text: {
-              query: args.query_text,
-              path: ['canonical_name', 'aliases', 'search_text'],
-              fuzzy: { maxEdits: 2, prefixLength: 1, maxExpansions: 50 },
+            compound: {
+              must: [
+                {
+                  text: {
+                    query: args.query_text,
+                    path: ['canonical_name', 'aliases', 'search_text'],
+                    fuzzy: { maxEdits: 2, prefixLength: 1, maxExpansions: 50 },
+                  },
+                },
+              ],
+              filter: [
+                { equals: { path: 'store_id', value: storeId } },
+              ],
             },
           },
         },
@@ -333,20 +354,36 @@ interface CategorySuggestion {
   matched_keyword: string;
 }
 
+/**
+ * Category shelves for suggestion lookup: shelves that carry categories,
+ * deduped by category signature so template-generated L/R side faces (which
+ * copy their main shelf's keywords) don't triple every suggestion. The main
+ * face comes first in store.shelves, so it wins the dedupe.
+ */
+function categoryShelves(shelves: ShelfLocation[]): ShelfLocation[] {
+  const seen = new Set<string>();
+  return shelves.filter(s => {
+    if (s.categories.length === 0) return false;
+    const key = s.categories.join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function execSuggestByCategory(
   args: { query_text: string }
 ): Promise<{ matches: CategorySuggestion[]; total_searched: number }> {
-  const q = (args.query_text || '').toLowerCase().trim();
-  if (!q) return { matches: [], total_searched: SHELVES.length };
+  // Shelf taxonomy is per-store now — resolve it via the ambient tenant
+  // (cached 60 s in store-context), never via an LLM-provided parameter.
+  const store = await getStoreBySlug(getTenantStoreId());
+  const shelves = categoryShelves(store?.shelves ?? []);
 
-  // Only consider main shelves (A1-A12, B1-B11) for category lookup — the
-  // L/R side faces and C-zone entries inherit (or have no) categories.
-  const mainShelves = SHELVES.filter(
-    s => /^[AB]\d+$/.test(s.code) && s.categories.length > 0
-  );
+  const q = (args.query_text || '').toLowerCase().trim();
+  if (!q) return { matches: [], total_searched: shelves.length };
 
   const matches: CategorySuggestion[] = [];
-  for (const s of mainShelves) {
+  for (const s of shelves) {
     const hit = s.categories.find(c => {
       const cl = c.toLowerCase();
       return cl.includes(q) || q.includes(cl);
@@ -356,7 +393,7 @@ export async function execSuggestByCategory(
     }
   }
 
-  return { matches: matches.slice(0, 5), total_searched: mainShelves.length };
+  return { matches: matches.slice(0, 5), total_searched: shelves.length };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -525,6 +562,9 @@ export async function execLogSearch(
   const result = await mcpInsertMany({
     collection: 'search_logs',
     documents: [{
+      // Legacy collection (superseded by search_history) — still stamp the
+      // tenant so nothing store-less is ever written.
+      store_id: getTenantStoreIdOrNull(),
       query: args.original_query,
       resolved_intent: args.resolved_intent,
       results_found: args.results_found,

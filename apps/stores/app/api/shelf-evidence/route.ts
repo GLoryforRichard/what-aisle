@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { DetectedProduct } from '@/lib/gemini';
 import { saveShelfDirect, enhanceShelfBackground } from '@/lib/shelf-save';
+import { requireStore } from '@/lib/store-context';
 import { logOp } from '@/lib/ops';
 import { EMPTY_USAGE, addUsage, UsageTotals } from '@/lib/cost';
 
@@ -43,6 +44,12 @@ function sanitizeProduct(raw: unknown): DetectedProduct | null {
 }
 
 export async function POST(req: NextRequest) {
+  // TODO(task-3): requireStoreAdmin() lands here — per-store passcode cookie
+  // auth for every write endpoint (PRD F-10).
+  const gate = await requireStore(req);
+  if (!gate.ok) return gate.response;
+  const store = gate.store;
+
   const body = (await req.json()) as SaveBody;
   const aisle = body.aisle?.trim();
   const allProducts = Array.isArray(body.products) ? body.products : [];
@@ -88,12 +95,12 @@ export async function POST(req: NextRequest) {
             message: `Trimming to first ${MAX_PRODUCTS_PER_RUN} products (you sent ${allProducts.length}).`,
           });
         }
-        for await (const event of saveShelfDirect({ aisle, products })) {
+        for await (const event of saveShelfDirect({ storeId: store.slug, aisle, products })) {
           const e = event as { type?: string; usage?: Partial<UsageTotals> };
           if (e.type === 'cost' && e.usage) usage = addUsage(usage, e.usage);
           send(event);
         }
-        await logOp('save', usage);
+        await logOp(store.slug, 'save', usage);
       } catch (err) {
         send({
           type: 'error',
@@ -107,7 +114,7 @@ export async function POST(req: NextRequest) {
         // promise alive after the SSE response is closed, so the user gets
         // an instant "done" while aliases land 5–10 s later in the
         // background (Atlas Vector Search auto-embedding will re-index).
-        enhanceShelfBackground({ aisle, products }).catch(err => {
+        enhanceShelfBackground({ storeId: store.slug, aisle, products }).catch(err => {
           console.warn(
             '[shelf-evidence] background alias enhancement failed:',
             err instanceof Error ? err.message : err

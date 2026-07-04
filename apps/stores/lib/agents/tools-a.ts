@@ -3,6 +3,9 @@ import { Type, FunctionDeclaration } from '@google/genai';
 import { generateContentWithRetry, VISION_MODEL } from '@/lib/gemini';
 import { Product, ShelfEvidence } from '@/lib/types';
 import { mcpFind, mcpInsertMany, mcpUpdateMany } from '@/lib/mcp/mongo-ops';
+// SUPERSEDED path (live save is lib/shelf-save.ts). Every DB access below is
+// still tenant-scoped via AsyncLocalStorage so a revival can't cross stores.
+import { getTenantStoreId } from '@/lib/tenant-context';
 
 // ─────────────────────────────────────────────────────────────
 // Tool declarations sent to Gemini
@@ -216,7 +219,7 @@ export async function execFindExistingProducts(
 
   const { data: docs, via } = await mcpFind<Product & { _id?: { $oid?: string } | string | ObjectId }>({
     collection: 'products',
-    filter: { canonical_name: { $in: names } },
+    filter: { store_id: getTenantStoreId(), canonical_name: { $in: names } },
     limit: names.length,
   });
 
@@ -252,7 +255,7 @@ export async function execFindExistingProduct(_db: Db, args: { canonical_name: s
   // otherwise falls back to the direct driver (Vercel / serverless).
   const { data: docs, via } = await mcpFind<Product & { _id?: { $oid?: string } | string | ObjectId }>({
     collection: 'products',
-    filter: { canonical_name: canonical },
+    filter: { store_id: getTenantStoreId(), canonical_name: canonical },
     limit: 1,
   });
   const doc = docs[0];
@@ -390,7 +393,7 @@ export async function execSaveProduct(
 
   const found = await mcpFind<Product>({
     collection: 'products',
-    filter: { canonical_name: canonical },
+    filter: { store_id: getTenantStoreId(), canonical_name: canonical },
     limit: 1,
   });
 
@@ -407,7 +410,7 @@ export async function execSaveProduct(
 
     const upd = await mcpUpdateMany({
       collection: 'products',
-      filter: { canonical_name: canonical },
+      filter: { store_id: getTenantStoreId(), canonical_name: canonical },
       update: {
         $set: set,
         $inc: { evidence_count: 1 },
@@ -421,6 +424,7 @@ export async function execSaveProduct(
   }
 
   const doc: Record<string, unknown> = {
+    store_id: getTenantStoreId(),
     canonical_name: canonical,
     aliases,
     search_text: buildSearchText(canonical, aliases),
@@ -484,7 +488,7 @@ export async function execSaveProducts(
   const names = items.map(p => p.canonical_name);
   const found = await mcpFind<Product>({
     collection: 'products',
-    filter: { canonical_name: { $in: names } },
+    filter: { store_id: getTenantStoreId(), canonical_name: { $in: names } },
     limit: names.length,
   });
   const existingByName = new Map(found.data.map(p => [p.canonical_name, p]));
@@ -512,10 +516,11 @@ export async function execSaveProducts(
 
     const write = await mcpUpdateMany({
       collection: 'products',
-      filter: { canonical_name: item.canonical_name },
+      filter: { store_id: getTenantStoreId(), canonical_name: item.canonical_name },
       update: {
         $set: set,
         $setOnInsert: {
+          store_id: getTenantStoreId(),
           canonical_name: item.canonical_name,
           created_at: { $date: now.toISOString() },
         },
@@ -543,6 +548,7 @@ export async function execRecordShelfEvidence(
   args: { aisle: string; products_detected: string[] }
 ) {
   const evidence: ShelfEvidence = {
+    store_id: getTenantStoreId(),
     photo_url: '',
     aisle: args.aisle,
     products_detected: args.products_detected,

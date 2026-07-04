@@ -2,18 +2,32 @@ import type { Metadata, Viewport } from "next";
 import { Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import StaleClientGuard from "@/components/StaleClientGuard";
+import { getStoreOrNull } from "@/lib/store-context";
 
-// Wherebear 3.0 "Gumroad" direction — Space Grotesk (geometric, neo-brutalist).
+// "Gumroad" direction — Space Grotesk (geometric, neo-brutalist).
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-space",
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "找货熊 Wherebear — Ask the bear. Find the aisle.",
-  description: "找货熊 Wherebear helps grocery workers answer customer questions instantly.",
-};
+/** Title/description come from the tenant's branding (PRD F-9); the What-Aisle
+ *  product name is the fallback for non-tenant hosts (unknown slug, superadmin). */
+export async function generateMetadata(): Promise<Metadata> {
+  const store = await getStoreOrNull().catch(() => null);
+  const name = store?.branding.displayName || store?.name;
+  if (!name) {
+    return {
+      title: "What-Aisle — Find any item in the store",
+      description: "AI aisle finder for supermarkets. Type any product, in any language, and see which shelf it's on.",
+    };
+  }
+  const zh = store?.name_zh ? `${store.name_zh} ` : "";
+  return {
+    title: `${zh}${name} — What-Aisle`,
+    description: `Find any item at ${name}: search in any language and see the shelf on the store map.`,
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { detectAndIdentifyProducts } from '@/lib/gemini';
 import { buildShelfContext } from '@/lib/shelves';
+import { requireStore } from '@/lib/store-context';
 import { logOp } from '@/lib/ops';
 
 export const runtime = 'nodejs';
@@ -12,6 +13,10 @@ export const maxDuration = 120;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
+  const gate = await requireStore(req);
+  if (!gate.ok) return gate.response;
+  const store = gate.store;
+
   // Captured up here so the failure log in `catch` can describe the request
   // (the formData locals are out of scope down there).
   let reqInfo = 'aisle=(none) file=(none)';
@@ -38,10 +43,10 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type || 'image/jpeg';
 
-    const shelfContext = aisle ? buildShelfContext(aisle) : undefined;
+    const shelfContext = aisle ? buildShelfContext(store.shelves, aisle) : undefined;
     const { products, usage } = await detectAndIdentifyProducts(buffer, mimeType, shelfContext);
 
-    await logOp('snap', usage);
+    await logOp(store.slug, 'snap', usage);
 
     return NextResponse.json({
       ok: true,

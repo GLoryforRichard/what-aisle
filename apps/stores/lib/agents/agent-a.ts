@@ -3,11 +3,14 @@ import { Content, FunctionCall } from '@google/genai';
 import { getDb } from '@/lib/mongodb';
 import { AGENT_A_TOOLS, dispatchToolA } from './tools-a';
 import { AgentEvent } from './types';
-import { buildShelfContext } from '@/lib/shelves';
+import { buildShelfContext, ShelfLocation } from '@/lib/shelves';
 
 export interface AgentAInput {
   aisle: string;
   products: DetectedProduct[];
+  /** The store's shelf taxonomy (data-driven since multi-tenancy). This agent
+   *  is SUPERSEDED by lib/shelf-save.ts and has no live callers. */
+  shelves?: ShelfLocation[];
 }
 
 const SYSTEM_PROMPT = `You are Agent A, the "store memory writer" inside Wherebear, a small assistant for grocery workers in a bilingual (English + Chinese) shop.
@@ -65,7 +68,7 @@ export async function* runAgentA(input: AgentAInput): AsyncGenerator<AgentEvent>
     message: `Got ${input.products.length} products for ${input.aisle}. Building memory…`,
   };
 
-  const shelfContext = buildShelfContext(input.aisle);
+  const shelfContext = buildShelfContext(input.shelves ?? [], input.aisle);
   // IMPORTANT: name and metadata are kept on separate labeled lines so the
   // model never confuses category/confidence with the canonical_name. Previously
   // `${name} (${category}) [${confidence}]` was on one line and Gemini saved

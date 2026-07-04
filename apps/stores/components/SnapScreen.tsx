@@ -8,6 +8,7 @@ import ScreenHeader from './ScreenHeader';
 import ShelfScanner from './ShelfScanner';
 import type { DetectedProduct } from '@/lib/gemini';
 import { getShelf } from '@/lib/shelves';
+import { useStoreConfig } from '@/lib/store-config-client';
 import StoreMapModal from './StoreMapModal';
 import { UsageTotals, EMPTY_USAGE, addUsage } from '@/lib/cost';
 import { useTranslation } from '@/lib/i18n';
@@ -98,31 +99,17 @@ async function cropThumbnails(file: File, products: DetectedProduct[]): Promise<
 
 export default function SnapScreen({ go, onSubmit }: SnapScreenProps) {
   const { t } = useTranslation();
+  // Per-store shelf taxonomy (data-driven — no hardcoded shelf list).
+  const shelves = useStoreConfig()?.shelves ?? [];
   // Empty until the worker picks a shelf — this gates the whole capture area,
   // so the shelf picker is the first (and only) thing they see on arrival.
   const [location, setLocation] = useState('');
   const [showMap, setShowMap] = useState(false);
   const [photos, setPhotos] = useState<PhotoState[]>([]);
   const [removedNames, setRemovedNames] = useState<Set<string>>(new Set());
-  // Built-in demo shelf photo for visitors (judges) with no real shelf at
-  // hand. The button only appears if /sample-shelf.jpg actually exists in
-  // public/, so shipping without the asset simply hides the feature.
-  // The sample was REALLY shot on shelf B10, so using it force-selects and
-  // locks B10 — demo saves land on the shelf the photo came from instead of
-  // polluting whichever shelf a visitor happened to tap.
-  const SAMPLE_SHELF = 'B10';
-  const [sampleAvailable, setSampleAvailable] = useState(false);
-  const [sampleLoading, setSampleLoading] = useState(false);
-  const [sampleUsed, setSampleUsed] = useState(false);
   /** When non-null, the Detected items list filters to only the SKUs from
    *  this one photo. Tap the same chip again (or "Show all") to clear. */
   const [filterPhotoId, setFilterPhotoId] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/sample-shelf.jpg', { method: 'HEAD' })
-      .then(r => setSampleAvailable(r.ok))
-      .catch(() => {});
-  }, []);
 
   // Revoke preview object URLs on unmount.
   useEffect(() => {
@@ -240,9 +227,7 @@ export default function SnapScreen({ go, onSubmit }: SnapScreenProps) {
     setPhotos(prev => {
       const p = prev.find(x => x.id === id);
       if (p) URL.revokeObjectURL(p.previewUrl);
-      const next = prev.filter(x => x.id !== id);
-      if (next.length === 0) setSampleUsed(false); // unlock the shelf picker
-      return next;
+      return prev.filter(x => x.id !== id);
     });
     if (filterPhotoId === id) setFilterPhotoId(null);
   };
@@ -284,7 +269,7 @@ export default function SnapScreen({ go, onSubmit }: SnapScreenProps) {
   const anyDetecting = detectingCount > 0;
   const canSubmit = mergedDetected.length > 0 && !anyDetecting;
 
-  const currentShelf = getShelf(location);
+  const currentShelf = getShelf(shelves, location);
   const filterIndex = filterPhotoId ? photos.findIndex(p => p.id === filterPhotoId) : -1;
   // The big preview at the top mirrors whichever chip the worker is reviewing.
   // Falls back to the most recent photo when no chip is selected.
@@ -306,10 +291,9 @@ export default function SnapScreen({ go, onSubmit }: SnapScreenProps) {
     <div style={{ padding: '62px 20px 130px', fontFamily: FONT, color: C.text }}>
       <ScreenHeader title={t('snap')} onBack={() => go('home')} />
 
-      {/* Shelf picker — locked while the sample photo is in use (the sample
-          is hard-bound to its real shelf, see SAMPLE_SHELF). */}
+      {/* Shelf picker */}
       <Label>{t('snap_location')}</Label>
-      <button onClick={() => { if (!sampleUsed) setShowMap(true); }} style={{
+      <button onClick={() => setShowMap(true)} style={{
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         background: location ? C.white : C.primarySofter,
         border: location ? `1px solid ${C.border}` : `1.5px dashed ${C.primary}`,
@@ -353,16 +337,6 @@ export default function SnapScreen({ go, onSubmit }: SnapScreenProps) {
         />
       )}
 
-      {sampleUsed && (
-        <div style={{
-          marginTop: 8, fontSize: 12.5, color: C.primaryDark, fontWeight: 600,
-          lineHeight: 1.45, padding: '8px 12px',
-          background: C.primarySofter, borderRadius: 10,
-        }}>
-          🔒 {t('snap_sample_b10')}
-        </div>
-      )}
-
       {location ? (
         <div style={{ marginTop: 16 }}>
           <ShelfScanner
@@ -381,47 +355,6 @@ export default function SnapScreen({ go, onSubmit }: SnapScreenProps) {
           <Icon name="pin" size={28} style={{ color: C.primary }} />
           {t('snap_choose_first')}
         </div>
-      )}
-
-      {/* One-tap demo path: works with NO shelf knowledge — picks the sample
-          photo's real shelf (B10) and locks the picker so demo saves can't
-          land on the wrong shelf. */}
-      {sampleAvailable && totalPhotos === 0 && (
-        <>
-          <button
-            onClick={async () => {
-              if (sampleLoading) return;
-              setSampleLoading(true);
-              try {
-                const res = await fetch('/sample-shelf.jpg');
-                const blob = await res.blob();
-                setLocation(SAMPLE_SHELF);
-                setSampleUsed(true);
-                handleAddFiles([new File([blob], 'sample-shelf.jpg', { type: blob.type || 'image/jpeg' })]);
-              } finally {
-                setSampleLoading(false);
-              }
-            }}
-            disabled={sampleLoading}
-            style={{
-              width: '100%', marginTop: 12, padding: '12px 0',
-              background: 'transparent', color: C.primaryDark,
-              border: `1.5px dashed ${C.primary}`, borderRadius: 14,
-              fontFamily: FONT, fontSize: 14, fontWeight: 700,
-              cursor: sampleLoading ? 'default' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            }}
-          >
-            <Icon name={sampleLoading ? 'dots' : 'image'} size={16} />
-            {sampleLoading ? t('snap_sample_loading') : t('snap_sample')}
-          </button>
-          <div style={{
-            marginTop: 6, fontSize: 12, color: C.textMuted, fontWeight: 500,
-            textAlign: 'center', lineHeight: 1.4,
-          }}>
-            {t('snap_sample_b10')}
-          </div>
-        </>
       )}
 
       {/* Photo strip — horizontal scroll showing each queued photo + state.

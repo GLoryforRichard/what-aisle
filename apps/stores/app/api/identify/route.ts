@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { identifyProductFromPhoto } from '@/lib/gemini';
+import { requireStore } from '@/lib/store-context';
 import { logOp } from '@/lib/ops';
 
 export const runtime = 'nodejs';
@@ -11,6 +12,9 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 // for; Gemini names it so we can search the store. Distinct from /api/vision,
 // which detects ALL products on a shelf with bounding boxes.
 export async function POST(req: NextRequest) {
+  const gate = await requireStore(req);
+  if (!gate.ok) return gate.response;
+
   let reqInfo = 'image=(none)';
   try {
     const formData = await req.formData();
@@ -33,7 +37,7 @@ export async function POST(req: NextRequest) {
       file.type || 'image/jpeg',
       lang || undefined,
     );
-    await logOp('identify', usage);
+    await logOp(gate.store.slug, 'identify', usage);
 
     return NextResponse.json({ ok: true, text, text_en });
   } catch (err) {

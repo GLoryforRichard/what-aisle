@@ -13,7 +13,7 @@ import { ObjectId } from 'mongodb';
 import { callMongoMcp, extractMcpText } from './mongo-mcp';
 import { getDb } from '@/lib/mongodb';
 
-const DB = process.env.MONGODB_DB || 'wherebear';
+const DB = process.env.MONGODB_DB || 'whataisle';
 
 // One-shot probe so we don't pay the spawn-failure tax on every call.
 let mcpUsable: boolean | null = null;

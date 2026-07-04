@@ -7,19 +7,30 @@ import { UsageTotals, EMPTY_USAGE, addUsage, extractGeminiUsage } from '@/lib/co
 // Gemini Developer API (AI Studio) instead — same models & SDK, but a free-tier
 // key with NO Cloud billing. Fallback for when the GCP project's billing is
 // unavailable; set GEMINI_API_KEY in .env.local to switch.
-const apiKey = process.env.GEMINI_API_KEY;
-const project = process.env.GOOGLE_CLOUD_PROJECT;
 // Gemini 3.x models are ONLY served from the "global" location on Vertex as of
 // 2026-05. Hardcoded so a regional GOOGLE_CLOUD_LOCATION can't break resolution.
 const location = 'global';
 
-if (!apiKey && !project) {
-  throw new Error('Set GEMINI_API_KEY (AI Studio) or GOOGLE_CLOUD_PROJECT (Vertex) in .env.local');
+let _genai: GoogleGenAI | null = null;
+
+/**
+ * Lazily-constructed client (first call, not import) so `next build` can load
+ * route modules without LLM credentials in the environment.
+ */
+export function getGenai(): GoogleGenAI {
+  if (_genai) return _genai;
+  const apiKey = process.env.GEMINI_API_KEY;
+  const project = process.env.GOOGLE_CLOUD_PROJECT;
+  if (!apiKey && !project) {
+    throw new Error('Set GEMINI_API_KEY (AI Studio) or GOOGLE_CLOUD_PROJECT (Vertex) in .env.local');
+  }
+  _genai = apiKey
+    ? new GoogleGenAI({ apiKey })                              // AI Studio (free tier, no billing)
+    : new GoogleGenAI({ vertexai: true, project, location });  // Vertex AI (Google Cloud)
+  return _genai;
 }
 
-export const genai = apiKey
-  ? new GoogleGenAI({ apiKey })                              // AI Studio (free tier, no billing)
-  : new GoogleGenAI({ vertexai: true, project, location });  // Vertex AI (Google Cloud)
+type GenerateContentFn = GoogleGenAI['models']['generateContent'];
 
 // Overridable: the Vertex and Developer APIs don't always expose identical model
 // ids, so GEMINI_MODEL lets the AI Studio path pick a different one if needed.
@@ -62,8 +73,8 @@ function releaseGeminiSlot(): void {
 }
 
 export async function generateContentWithRetry(
-  params: Parameters<typeof genai.models.generateContent>[0]
-): Promise<Awaited<ReturnType<typeof genai.models.generateContent>>> {
+  params: Parameters<GenerateContentFn>[0]
+): Promise<Awaited<ReturnType<GenerateContentFn>>> {
   const MAX_ATTEMPTS = 5;
   let lastErr: unknown;
 
@@ -71,7 +82,7 @@ export async function generateContentWithRetry(
     try {
       await acquireGeminiSlot();
       try {
-        return await genai.models.generateContent(params);
+        return await getGenai().models.generateContent(params);
       } finally {
         releaseGeminiSlot();
       }
@@ -116,9 +127,9 @@ export async function generateContentWithRetry(
  * Only use on cheap calls — it can double the token spend of that call.
  */
 export async function generateContentWithHedge(
-  params: Parameters<typeof genai.models.generateContent>[0],
+  params: Parameters<GenerateContentFn>[0],
   hedgeAfterMs = 6000
-): Promise<Awaited<ReturnType<typeof genai.models.generateContent>>> {
+): Promise<Awaited<ReturnType<GenerateContentFn>>> {
   const first = generateContentWithRetry(params);
   const timedOut = Symbol('hedge');
   const raced = await Promise.race([

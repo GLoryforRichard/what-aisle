@@ -1,35 +1,41 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
+import { requireStore } from '@/lib/store-context';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+/** Raw DB inspector for the CURRENT store only — every read is tenant-scoped.
+ *  (Searches come from `search_history`; legacy `search_logs` is retired.) */
+export async function GET(req: NextRequest) {
+  const gate = await requireStore(req);
+  if (!gate.ok) return gate.response;
+  const storeId = gate.store.slug;
   try {
     const db = await getDb();
 
-    const [shelfEvidence, products, searchLogs, counts] = await Promise.all([
-      db.collection('shelf_evidence').find({}).sort({ timestamp: -1 }).limit(50).toArray(),
-      db.collection('products').find({}).sort({ updated_at: -1 }).limit(200).toArray(),
-      db.collection('search_logs').find({}).sort({ timestamp: -1 }).limit(50).toArray(),
+    const [shelfEvidence, products, searchHistory, counts] = await Promise.all([
+      db.collection('shelf_evidence').find({ store_id: storeId }).sort({ timestamp: -1 }).limit(50).toArray(),
+      db.collection('products').find({ store_id: storeId }).sort({ updated_at: -1 }).limit(200).toArray(),
+      db.collection('search_history').find({ store_id: storeId }).sort({ ts: -1 }).limit(50).toArray(),
       Promise.all([
-        db.collection('shelf_evidence').countDocuments(),
-        db.collection('products').countDocuments(),
-        db.collection('search_logs').countDocuments(),
+        db.collection('shelf_evidence').countDocuments({ store_id: storeId }),
+        db.collection('products').countDocuments({ store_id: storeId }),
+        db.collection('search_history').countDocuments({ store_id: storeId }),
       ]),
     ]);
 
     return NextResponse.json({
       ok: true,
-      db: db.databaseName,
+      store: storeId,
       counts: {
         shelf_evidence: counts[0],
         products: counts[1],
-        search_logs: counts[2],
+        search_history: counts[2],
       },
       shelf_evidence: shelfEvidence,
       products,
-      search_logs: searchLogs,
+      search_history: searchHistory,
     });
   } catch (err) {
     return NextResponse.json({

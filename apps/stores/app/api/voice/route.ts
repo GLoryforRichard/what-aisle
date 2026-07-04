@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transcribeAudio } from '@/lib/gemini';
+import { requireStore } from '@/lib/store-context';
 import { logOp } from '@/lib/ops';
 
 export const runtime = 'nodejs';
@@ -10,6 +11,9 @@ export const maxDuration = 30;
 const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
+  const gate = await requireStore(req);
+  if (!gate.ok) return gate.response;
+
   let reqInfo = 'audio=(none)';
   try {
     const formData = await req.formData();
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
       file.type || 'audio/wav',
       lang || undefined,
     );
-    await logOp('voice', usage);
+    await logOp(gate.store.slug, 'voice', usage);
 
     return NextResponse.json({ ok: true, text, text_en });
   } catch (err) {

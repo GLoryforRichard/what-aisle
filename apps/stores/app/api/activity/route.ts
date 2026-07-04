@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
+import { requireStore } from '@/lib/store-context';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,18 +12,23 @@ interface ActivityItem {
   timestamp: string;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireStore(req);
+  if (!gate.ok) return gate.response;
+  const storeId = gate.store.slug;
   try {
     const db = await getDb();
+    // Searches read from `search_history` (the deterministic per-search log)
+    // — the legacy `search_logs` collection is no longer consulted.
     const [snaps, finds] = await Promise.all([
       db.collection('shelf_evidence')
-        .find({})
+        .find({ store_id: storeId })
         .sort({ timestamp: -1 })
         .limit(20)
         .toArray(),
-      db.collection('search_logs')
-        .find({})
-        .sort({ timestamp: -1 })
+      db.collection('search_history')
+        .find({ store_id: storeId })
+        .sort({ ts: -1 })
         .limit(20)
         .toArray(),
     ]);
@@ -39,14 +45,13 @@ export async function GET() {
     }
 
     for (const f of finds) {
-      const found = (f.results_found ?? 0) > 0;
       items.push({
         type: 'find',
-        title: found
+        title: f.found
           ? `Found "${f.query}"`
           : `No result for "${f.query}"`,
-        subtitle: f.resolved_intent || undefined,
-        timestamp: new Date(f.timestamp).toISOString(),
+        subtitle: (f.product as string | null) || undefined,
+        timestamp: new Date(f.ts).toISOString(),
       });
     }
 

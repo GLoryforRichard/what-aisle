@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { SHELVES } from '@/lib/shelves';
+import type { ShelfLocation } from '@/lib/shelves';
+import { useStoreConfig } from '@/lib/store-config-client';
 import { C, FONT, SHADOW } from '@/lib/theme';
 import Icon from './Icon';
 
@@ -23,6 +24,8 @@ const mono: React.CSSProperties = {
 };
 
 export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
+  // Per-store shelf taxonomy (data-driven — no hardcoded shelf list).
+  const shelves = useStoreConfig()?.shelves ?? [];
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [items, setItems] = useState<AdminProduct[] | null>(null);
@@ -141,7 +144,7 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
         gap: 10,
         marginBottom: 20,
       }}>
-        {SHELVES.map(s => {
+        {shelves.map(s => {
           const c = counts?.[s.code] ?? 0;
           return (
             <div
@@ -309,6 +312,7 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
       {editing && (
         <EditModal
           product={editing}
+          shelves={shelves}
           onCancel={() => setEditing(null)}
           onSave={onSave}
         />
@@ -361,10 +365,12 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
 
 function EditModal({
   product,
+  shelves,
   onCancel,
   onSave,
 }: {
   product: AdminProduct;
+  shelves: ShelfLocation[];
   onCancel: () => void;
   onSave: (patch: Partial<AdminProduct>) => void;
 }) {
@@ -424,7 +430,7 @@ function EditModal({
             onChange={e => setAisle(e.target.value)}
             style={fieldStyle}
           >
-            {SHELVES.map(s => (
+            {shelves.map(s => (
               <option key={s.code} value={s.code}>
                 {s.code} — {s.description}
               </option>

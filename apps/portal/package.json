@@ -31,6 +31,8 @@
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.34",
     "@ai-sdk/openai": "^3.0.63",
+    "@aws-sdk/client-s3": "^3.1079.0",
+    "@aws-sdk/s3-request-presigner": "^3.1079.0",
     "@beehiiv/sdk": "^0.1.9",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",

@@ -13,6 +13,7 @@ import {
   LockKeyholeIcon,
   Settings2Icon,
   SettingsIcon,
+  StoreIcon,
   UsersRoundIcon,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -39,6 +40,12 @@ export function useSidebarLinks(): NestedMenuItem[] {
       title: t('dashboard.title'),
       icon: <LayoutDashboardIcon className="size-4 shrink-0" />,
       href: Routes.Dashboard,
+      external: false,
+    },
+    {
+      title: t('store.nav'),
+      icon: <StoreIcon className="size-4 shrink-0" />,
+      href: Routes.DashboardStore,
       external: false,
     },
     {

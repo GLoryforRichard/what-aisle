@@ -736,6 +736,76 @@
       "title": "Upgrade",
       "description": "Upgrade to Pro to access all features",
       "button": "Upgrade"
+    },
+    "store": {
+      "nav": "My Store",
+      "title": "My Store",
+      "empty": {
+        "title": "No store yet",
+        "description": "You haven't opened a store. Claim your supermarket's address to get started.",
+        "cta": "Open a store"
+      },
+      "steps": {
+        "paid": "Paid",
+        "awaitingVideo": "Upload video",
+        "building": "Building",
+        "live": "Live",
+        "suspended": "Suspended"
+      },
+      "manageSubscription": "Manage subscription",
+      "billing": {
+        "title": "Subscription",
+        "description": "Manage your subscription, payment method and invoices."
+      },
+      "upload": {
+        "title": "Upload your store layout video",
+        "description": "Walk one lap around your store and film every aisle clearly. We'll turn it into your online store.",
+        "guideTitle": "Shooting tips",
+        "guide1": "Walk one full lap around the store, filming each aisle row by row.",
+        "guide2": "Keep the camera steady and film product shelves clearly enough to read labels.",
+        "guide3": "Good lighting and a slow, steady pace make the best result.",
+        "chooseFile": "Choose a video",
+        "uploading": "Uploading… {progress}%",
+        "finalizing": "Finishing up…",
+        "success": "Video uploaded! We're building your store now.",
+        "errorNotVideo": "Please choose a video file.",
+        "errorTooLarge": "The video must be 2GB or smaller.",
+        "errorUpload": "Upload failed. Please try again.",
+        "linkToggle": "Use a drive link instead",
+        "linkHint": "If your video is too large to upload, paste a shared drive link (Google Drive, Dropbox, etc.).",
+        "linkSubmit": "Submit link",
+        "linkSuccess": "Link received! We're building your store now.",
+        "linkError": "Could not submit the link. Please check the URL and try again."
+      },
+      "building": {
+        "title": "We're building your store",
+        "description": "Thanks! We've received your footage and are setting up your store. This usually takes a little while — we'll email you when it's live.",
+        "receivedFile": "Received video:",
+        "receivedLink": "Received link:"
+      },
+      "live": {
+        "title": "Your store is live",
+        "description": "Customers can now browse your store online.",
+        "urlLabel": "Store address",
+        "adminLabel": "Staff management",
+        "adminHint": "Your staff manage products at {url} using the passcode we emailed you.",
+        "passcode": {
+          "button": "Reset admin passcode",
+          "once": "Here is your new passcode. It is shown only once — save it now.",
+          "success": "Passcode reset.",
+          "error": "Could not reset the passcode. Please try again.",
+          "copy": "Copy passcode",
+          "copied": "Copied to clipboard."
+        }
+      },
+      "suspended": {
+        "title": "Your store is suspended",
+        "description": "We couldn't process your latest payment, so your store is temporarily offline. Update your payment method to bring it back online."
+      },
+      "canceled": {
+        "title": "This store has been canceled",
+        "description": "This store is closed and can no longer be reactivated. Contact support if you think this is a mistake."
+      }
     }
   },
   "Mail": {

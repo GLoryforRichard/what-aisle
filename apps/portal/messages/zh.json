@@ -736,6 +736,76 @@
       "title": "升级",
       "description": "升级到Pro以获取所有功能",
       "button": "升级"
+    },
+    "store": {
+      "nav": "我的店铺",
+      "title": "我的店铺",
+      "empty": {
+        "title": "还没有店铺",
+        "description": "你还没有开店。先为你的超市抢占专属网址，开始建店吧。",
+        "cta": "开通店铺"
+      },
+      "steps": {
+        "paid": "已付款",
+        "awaitingVideo": "待上传视频",
+        "building": "建设中",
+        "live": "已上线",
+        "suspended": "已暂停"
+      },
+      "manageSubscription": "管理订阅",
+      "billing": {
+        "title": "订阅",
+        "description": "管理你的订阅、支付方式和账单。"
+      },
+      "upload": {
+        "title": "上传你的店铺布局视频",
+        "description": "绕店走一圈，把每一排货架都拍清楚，我们会把它变成你的线上店铺。",
+        "guideTitle": "拍摄指引",
+        "guide1": "绕店走一圈，逐排把每条货架通道拍下来。",
+        "guide2": "保持镜头平稳，把货架上的商品拍清楚，标签能看清最好。",
+        "guide3": "光线充足、走得慢而稳，效果最好。",
+        "chooseFile": "选择视频",
+        "uploading": "上传中… {progress}%",
+        "finalizing": "正在完成…",
+        "success": "视频已上传！我们正在为你建店。",
+        "errorNotVideo": "请选择视频文件。",
+        "errorTooLarge": "视频不能超过 2GB。",
+        "errorUpload": "上传失败，请重试。",
+        "linkToggle": "改用网盘链接",
+        "linkHint": "如果视频太大无法上传，可以粘贴一个网盘分享链接（如百度网盘、Google Drive 等）。",
+        "linkSubmit": "提交链接",
+        "linkSuccess": "链接已收到！我们正在为你建店。",
+        "linkError": "链接提交失败，请检查网址后重试。"
+      },
+      "building": {
+        "title": "我们正在为你建店",
+        "description": "谢谢！我们已收到你的素材，正在搭建你的店铺。通常需要一点时间，上线后会给你发邮件通知。",
+        "receivedFile": "已收到视频：",
+        "receivedLink": "已收到链接："
+      },
+      "live": {
+        "title": "你的店铺已上线",
+        "description": "顾客现在可以在线浏览你的店铺了。",
+        "urlLabel": "店铺网址",
+        "adminLabel": "员工管理",
+        "adminHint": "你的员工可以在 {url} 使用我们邮件发送的管理密码来管理商品。",
+        "passcode": {
+          "button": "重置管理密码",
+          "once": "这是你的新密码，只显示一次，请立即保存。",
+          "success": "密码已重置。",
+          "error": "重置密码失败，请重试。",
+          "copy": "复制密码",
+          "copied": "已复制到剪贴板。"
+        }
+      },
+      "suspended": {
+        "title": "你的店铺已暂停",
+        "description": "我们未能处理你最近一次的付款，店铺已临时下线。请更新支付方式以恢复上线。"
+      },
+      "canceled": {
+        "title": "该店铺已关闭",
+        "description": "该店铺已关闭，无法再重新启用。如有疑问请联系客服。"
+      }
     }
   },
   "Mail": {

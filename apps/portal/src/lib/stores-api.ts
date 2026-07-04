@@ -134,3 +134,22 @@ export async function updateStore(
     ...patch,
   });
 }
+
+export interface ResetPasscodeResult {
+  /** The freshly generated staff admin passcode, returned ONCE. */
+  passcode: string;
+}
+
+/**
+ * Ask the Stores App to rotate the staff /admin passcode for a store and
+ * return the new value. The Stores App owns passcode generation/hashing —
+ * the portal only relays the owner's request and surfaces the plaintext once.
+ */
+export async function resetStorePasscode(
+  slug: string
+): Promise<ResetPasscodeResult> {
+  return request<ResetPasscodeResult>(
+    `/api/internal/stores/${encodeURIComponent(slug)}/reset-passcode`,
+    'POST'
+  );
+}

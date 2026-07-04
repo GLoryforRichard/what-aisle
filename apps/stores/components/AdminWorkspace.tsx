@@ -161,13 +161,11 @@ export default function AdminWorkspace() {
     );
   })();
 
-  // TODO(task-3): replace this client-side PasscodeGate with the real
-  // requireStoreAdmin flow — POST /api/admin/session verifies the per-store
-  // passcode (bcrypt hash in stores.admin.passcodeHash) and sets an HttpOnly
-  // HMAC cookie scoped to this subdomain (PRD F-10). The hardcoded "2627"
-  // below is a mechanical placeholder until then.
+  // Real staff auth (PRD F-10): PasscodeGate POSTs to /api/admin/session,
+  // which bcrypt-verifies the per-store passcode and sets the HttpOnly
+  // `wa_admin` HMAC cookie scoped to this subdomain.
   return (
-    <PasscodeGate passcode="2627" storageKey="whataisle:staff-unlocked" cancelHref="/">
+    <PasscodeGate cancelHref="/">
       {content}
     </PasscodeGate>
   );

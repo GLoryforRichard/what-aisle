@@ -1,20 +1,40 @@
-import { NextResponse } from 'next/server';
-
 /**
- * The deployment is public (hackathon judging) while the database serves a
- * real store, so admin WRITE endpoints are hard-locked server-side — the UI
- * only simulates writes locally, and even a hand-crafted curl gets a 403.
- * Set ADMIN_WRITES=unlocked in the environment to re-enable real writes
- * (e.g. for in-store use after the judging window).
+ * Per-store staff authorization for API routes (PRD F-10).
+ *
+ * Replaces the old ADMIN_WRITES env-var demo lock: every staff surface now
+ * requires a valid `wa_admin` session cookie issued by
+ * POST /api/admin/session after the store's 6-digit passcode checked out.
+ *
+ * Usage (ALWAYS after the requireStore staff-audience gate, which resolves
+ * the tenant and its status):
+ *
+ *   const gate = await requireStore(req, { audience: 'staff' });
+ *   if (!gate.ok) return gate.response;
+ *   const admin = requireStoreAdmin(req, gate.store);
+ *   if (!admin.ok) return admin.response;
  */
-export function adminWriteGuard(): NextResponse | null {
-  if (process.env.ADMIN_WRITES === 'unlocked') return null;
-  return NextResponse.json(
-    {
+
+import { NextRequest, NextResponse } from 'next/server';
+import type { Store } from './types';
+import { ADMIN_COOKIE_NAME, verifyAdminSession } from './admin-session';
+
+export type StoreAdminResult =
+  | { ok: true }
+  | { ok: false; response: NextResponse };
+
+export function requireStoreAdmin(req: NextRequest, store: Store): StoreAdminResult {
+  const cookie = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
+  const session = verifyAdminSession(cookie, store);
+  if (!session) {
+    return {
       ok: false,
-      error:
-        'Write actions are disabled on this public demo deployment — the database serves a real store. (Set ADMIN_WRITES=unlocked server-side to re-enable.)',
-    },
-    { status: 403 },
-  );
+      // Generic message on purpose — don't reveal whether the cookie was
+      // absent, expired, for another store, or invalidated by a reset.
+      response: NextResponse.json(
+        { ok: false, error: 'staff authentication required' },
+        { status: 401 }
+      ),
+    };
+  }
+  return { ok: true };
 }

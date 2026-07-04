@@ -70,8 +70,13 @@ export default async function proxy(req: NextRequest) {
   const slug = extractSlug(hostname);
 
   // Founder console — passes through without a tenant; /superadmin routes
-  // carry their own auth (Caddy basic_auth + SUPERADMIN_TOKEN, task #4).
+  // carry their own auth (Caddy basic_auth + the `wa_super` cookie signed
+  // after a SUPERADMIN_TOKEN check, task #4). The subdomain root lands on
+  // the console for convenience.
   if (slug === 'superadmin') {
+    if (pathname === '/') {
+      return NextResponse.redirect(new URL('/superadmin', req.url), 307);
+    }
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -80,8 +85,15 @@ export default async function proxy(req: NextRequest) {
     return NextResponse.redirect(PORTAL_URL, 308);
   }
 
-  // No slug, or one that can't be a store → tenant not-found.
+  // No slug, or one that can't be a store → tenant not-found. Exception:
+  // the founder console is tenant-less by design, so in local dev (bare
+  // localhost with DEV_STORE_SLUG unset) /superadmin and /api/superadmin
+  // stay reachable — they carry their own wa_super auth.
   if (!slug || !SLUG_REGEX.test(slug)) {
+    if (pathname === '/superadmin' || pathname.startsWith('/superadmin/') ||
+        pathname.startsWith('/api/superadmin')) {
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ ok: false, error: 'store not found' }, { status: 404 });
     }

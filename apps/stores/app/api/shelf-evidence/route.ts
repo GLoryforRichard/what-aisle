@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { DetectedProduct } from '@/lib/gemini';
 import { saveShelfDirect, enhanceShelfBackground } from '@/lib/shelf-save';
 import { requireStore } from '@/lib/store-context';
+import { requireStoreAdmin } from '@/lib/admin-guard';
 import { logOp } from '@/lib/ops';
 import { EMPTY_USAGE, addUsage, UsageTotals } from '@/lib/cost';
 
@@ -44,11 +45,11 @@ function sanitizeProduct(raw: unknown): DetectedProduct | null {
 }
 
 export async function POST(req: NextRequest) {
-  // TODO(task-3): requireStoreAdmin() lands here — per-store passcode cookie
-  // auth for every write endpoint (PRD F-10).
   const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const store = gate.store;
+  const admin = requireStoreAdmin(req, store);
+  if (!admin.ok) return admin.response;
 
   const body = (await req.json()) as SaveBody;
   const aisle = body.aisle?.trim();

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import { requireStore } from '@/lib/store-context';
-import { adminWriteGuard } from '@/lib/admin-guard';
+import { requireStoreAdmin } from '@/lib/admin-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,8 @@ function buildSearchText(canonical: string, aliases: string[]): string {
 export async function GET(req: NextRequest) {
   const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
+  const admin = requireStoreAdmin(req, gate.store);
+  if (!admin.ok) return admin.response;
   const storeId = gate.store.slug;
   try {
     const aisle = req.nextUrl.searchParams.get('aisle')?.trim();
@@ -62,13 +64,11 @@ export async function GET(req: NextRequest) {
  * doc, not a per-aisle association. Re-scanning the SKU later inserts it fresh.
  */
 export async function DELETE(req: NextRequest) {
-  // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
-  // passcode cookie auth, PRD F-10).
   const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
+  const admin = requireStoreAdmin(req, gate.store);
+  if (!admin.ok) return admin.response;
   const storeId = gate.store.slug;
-  const locked = adminWriteGuard();
-  if (locked) return locked;
   try {
     const aisle = req.nextUrl.searchParams.get('aisle')?.trim();
     if (!aisle) {
@@ -98,13 +98,11 @@ export async function DELETE(req: NextRequest) {
  * auto-embed indexes it and it becomes searchable like a scanned product.
  */
 export async function POST(req: NextRequest) {
-  // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
-  // passcode cookie auth, PRD F-10).
   const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
+  const admin = requireStoreAdmin(req, gate.store);
+  if (!admin.ok) return admin.response;
   const storeId = gate.store.slug;
-  const locked = adminWriteGuard();
-  if (locked) return locked;
   try {
     const body = await req.json() as {
       canonical_name?: string; category?: string; aliases?: string[];

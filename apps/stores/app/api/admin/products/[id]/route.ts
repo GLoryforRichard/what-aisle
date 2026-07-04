@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getDb } from '@/lib/mongodb';
 import { requireStore } from '@/lib/store-context';
-import { adminWriteGuard } from '@/lib/admin-guard';
+import { requireStoreAdmin } from '@/lib/admin-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,13 +31,11 @@ export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
-  // passcode cookie auth, PRD F-10).
   const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
+  const admin = requireStoreAdmin(req, gate.store);
+  if (!admin.ok) return admin.response;
   const storeId = gate.store.slug;
-  const locked = adminWriteGuard();
-  if (locked) return locked;
   const { id } = await ctx.params;
   const objId = parseId(id);
   if (!objId) {
@@ -90,13 +88,11 @@ export async function DELETE(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
-  // passcode cookie auth, PRD F-10).
   const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
+  const admin = requireStoreAdmin(req, gate.store);
+  if (!admin.ok) return admin.response;
   const storeId = gate.store.slug;
-  const locked = adminWriteGuard();
-  if (locked) return locked;
   const { id } = await ctx.params;
   const objId = parseId(id);
   if (!objId) {

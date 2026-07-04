@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import { requireStore } from '@/lib/store-context';
+import { requireStoreAdmin } from '@/lib/admin-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
+  const admin = requireStoreAdmin(req, gate.store);
+  if (!admin.ok) return admin.response;
   const storeId = gate.store.slug;
   try {
     const db = await getDb();

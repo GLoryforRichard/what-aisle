@@ -21,7 +21,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { MongoClient, Db } from 'mongodb';
 import { SHELF_TEMPLATE, FLOORPLAN_TEMPLATE } from '../lib/templates/default-store';
+import { hashPasscode } from '../lib/admin-session';
 import type { Store } from '../lib/types';
+
+/** Staff passcode for BOTH fake stores (dev/test only — never a real store). */
+const DEV_PASSCODE = '135790';
 
 // Minimal .env.local loader (no dotenv dependency): only fills vars that are
 // not already set in the environment.
@@ -84,8 +88,10 @@ function fakeStore(slug: string, name: string, nameZh: string, displayName: stri
       defaultLocale: 'en',
     },
     admin: {
-      // TODO(task-3): real bcrypt passcode hash lands with requireStoreAdmin.
-      passcodeHash: '',
+      // Dev-only fixed passcode so the isolation checklist can log in to both
+      // fake stores. Real stores get a random 6-digit code from the internal
+      // provisioning API (POST /api/internal/stores).
+      passcodeHash: hashPasscode(DEV_PASSCODE),
       passcodeUpdatedAt: now,
     },
     shelves: SHELF_TEMPLATE,
@@ -111,7 +117,7 @@ async function seedStores(db: Db): Promise<void> {
     );
     console.log(
       res.upsertedCount
-        ? `  created store '${store.slug}' (${store.branding.displayName})`
+        ? `  created store '${store.slug}' (${store.branding.displayName}) — staff passcode ${DEV_PASSCODE}`
         : `  store '${store.slug}' already exists — untouched`
     );
   }

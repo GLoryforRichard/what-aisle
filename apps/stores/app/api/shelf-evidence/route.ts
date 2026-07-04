@@ -46,7 +46,7 @@ function sanitizeProduct(raw: unknown): DetectedProduct | null {
 export async function POST(req: NextRequest) {
   // TODO(task-3): requireStoreAdmin() lands here — per-store passcode cookie
   // auth for every write endpoint (PRD F-10).
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const store = gate.store;
 

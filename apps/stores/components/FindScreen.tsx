@@ -145,13 +145,31 @@ function viaTag(result: unknown): 'mcp' | 'sdk' | 'driver' | null {
  */
 function ResultMap({ aisles }: { aisles: string[] }) {
   const { t } = useTranslation();
-  const config = useStoreConfig();
+  const { config, error: configError, retry: retryConfig } = useStoreConfig();
   const single = aisles.length === 1;
   const [open, setOpen] = useState<string | null>(single ? aisles[0] : null);
 
   const rects = config?.floorplan.rects ?? [];
   const mapViewBox = config?.floorplan.viewBox;
   const mapLabels = config?.floorplan.labels;
+  if (configError && !config) {
+    // Config fetch failed → instead of silently dropping the map, offer retry.
+    return (
+      <div style={{
+        marginTop: 16, padding: '10px 12px',
+        background: '#fee', border: '1px solid #fcc', borderRadius: 12,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        fontSize: 13, color: '#933', fontWeight: 600,
+      }}>
+        <span>{t('config_load_error')}</span>
+        <button onClick={retryConfig} style={{
+          background: C.white, border: `1px solid ${C.border}`, borderRadius: 8,
+          padding: '4px 12px', fontSize: 12.5, fontWeight: 700, color: C.text,
+          cursor: 'pointer', fontFamily: FONT, flexShrink: 0,
+        }}>{t('config_retry')}</button>
+      </div>
+    );
+  }
   if (rects.length === 0) return null; // no floorplan configured / still loading
 
   return (

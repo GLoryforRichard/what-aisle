@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { ShelfLocation } from '@/lib/shelves';
 import { useStoreConfig } from '@/lib/store-config-client';
+import { useTranslation } from '@/lib/i18n';
 import { C, FONT, SHADOW } from '@/lib/theme';
 import Icon from './Icon';
 
@@ -24,8 +25,10 @@ const mono: React.CSSProperties = {
 };
 
 export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation();
   // Per-store shelf taxonomy (data-driven — no hardcoded shelf list).
-  const shelves = useStoreConfig()?.shelves ?? [];
+  const { config, error: configError, retry: retryConfig } = useStoreConfig();
+  const shelves = config?.shelves ?? [];
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [items, setItems] = useState<AdminProduct[] | null>(null);
@@ -135,6 +138,22 @@ export default function ShelfAdmin({ onBack }: { onBack: () => void }) {
           Tap a shelf to view or edit its products.
         </p>
       </div>
+
+      {configError && !config && (
+        <div style={{
+          marginBottom: 16, padding: '10px 12px',
+          background: '#fee', border: '1px solid #fcc', borderRadius: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          fontSize: 13.5, color: '#933', fontWeight: 600,
+        }}>
+          <span>{t('config_load_error')}</span>
+          <button onClick={retryConfig} style={{
+            background: C.white, border: `1px solid ${C.border}`, borderRadius: 8,
+            padding: '4px 12px', fontSize: 12.5, fontWeight: 700, color: C.text,
+            cursor: 'pointer', fontFamily: FONT, flexShrink: 0,
+          }}>{t('config_retry')}</button>
+        </div>
+      )}
 
       {/* Shelf grid — hidden once you drill into a shelf */}
       {!active && (

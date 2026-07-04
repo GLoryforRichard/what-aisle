@@ -3,26 +3,15 @@ import { getDb } from '@/lib/mongodb';
 
 /**
  * Liveness probe. Intentionally GLOBAL (works on any host, no tenant needed)
- * but returns only aggregate totals — never any per-store data or store list.
+ * and intentionally content-free: it reports only whether the app can reach
+ * the database — no counts, no names, nothing cross-tenant.
  */
 export async function GET() {
   try {
     const db = await getDb();
-
-    const counts: Record<string, number> = {};
-    for (const name of ['stores', 'products', 'shelf_evidence', 'search_history']) {
-      counts[name] = await db.collection(name).countDocuments();
-    }
-
-    return NextResponse.json({
-      ok: true,
-      db: db.databaseName,
-      counts,
-    });
-  } catch (err) {
-    return NextResponse.json({
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    }, { status: 500 });
+    await db.command({ ping: 1 });
+    return NextResponse.json({ ok: true, db: 'up' });
+  } catch {
+    return NextResponse.json({ ok: false, db: 'down' }, { status: 503 });
   }
 }

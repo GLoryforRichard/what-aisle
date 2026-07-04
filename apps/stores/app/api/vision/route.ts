@@ -13,7 +13,7 @@ export const maxDuration = 120;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const store = gate.store;
 

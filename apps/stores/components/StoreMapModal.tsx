@@ -15,7 +15,7 @@ interface StoreMapModalProps {
 
 export default function StoreMapModal({ current, onConfirm, onClose }: StoreMapModalProps) {
   const [pending, setPending] = useState(current);
-  const config = useStoreConfig();
+  const { config } = useStoreConfig();
 
   const handleSelect = (code: string) => {
     setPending(code);

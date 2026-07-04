@@ -112,7 +112,7 @@ GOOGLE_CLOUD_LOCATION=us-central1
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/health` | DB ping + collection counts |
+| GET | `/api/health` | Liveness probe (DB up/down only) |
 | GET | `/api/debug` | Raw dump of recent docs across collections |
 | POST | `/api/vision` | Multipart image → detected products list (uses shelf-code hint) |
 | POST | `/api/shelf-evidence` | JSON `{aisle, products}` → SSE stream of Agent A events; persists to DB |
@@ -120,8 +120,6 @@ GOOGLE_CLOUD_LOCATION=us-central1
 | GET | `/api/admin/products` | Per-shelf counts; with `?aisle=A1` returns that shelf's products |
 | PATCH | `/api/admin/products/[id]` | Update canonical_name / aliases / category / latest_aisle |
 | DELETE | `/api/admin/products/[id]` | Remove one product |
-| GET | `/api/mcp-test` | Lists MCP tools exposed by the MongoDB MCP server |
-| GET | `/api/mcp-probe` | Lightweight health probe for the MCP subprocess |
 | GET | `/api/activity` | Recent activity feed for the home screen |
 
 Routes (UI):
@@ -138,7 +136,6 @@ All commands run from your Mac and SSH into the VM via `gcloud`. **The active gc
 ### Health check
 ```bash
 curl -s https://wherebear.help/api/health | jq
-curl -s https://wherebear.help/api/mcp-test | jq '.tool_count'
 ```
 
 ### Deploy a new commit

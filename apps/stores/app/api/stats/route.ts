@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   try {
     const daysParam = Number(req.nextUrl.searchParams.get('days'));

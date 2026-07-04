@@ -11,7 +11,7 @@ function buildSearchText(canonical: string, aliases: string[]): string {
 }
 
 export async function GET(req: NextRequest) {
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const storeId = gate.store.slug;
   try {
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
   // passcode cookie auth, PRD F-10).
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const storeId = gate.store.slug;
   const locked = adminWriteGuard();
@@ -100,7 +100,7 @@ export async function DELETE(req: NextRequest) {
 export async function POST(req: NextRequest) {
   // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
   // passcode cookie auth, PRD F-10).
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const storeId = gate.store.slug;
   const locked = adminWriteGuard();

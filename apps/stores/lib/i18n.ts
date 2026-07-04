@@ -189,6 +189,9 @@ export const STRINGS = {
     lang_zh: 'Chinese', lang_en: 'English', lang_ja: 'Japanese', lang_ko: 'Korean',
     err_busy: 'Too busy right now — try again in a moment.',
     err_generic: 'Something went wrong — give it another try.',
+    // Store config load failure (shelf pickers / store map)
+    config_load_error: 'Store info failed to load.',
+    config_retry: 'Retry',
   },
   zh: {
     app_name: '找货熊',
@@ -347,6 +350,9 @@ export const STRINGS = {
     lang_zh: '中文', lang_en: 'English', lang_ja: '日本語', lang_ko: '한국어',
     err_busy: '现在有点忙，稍等片刻再试。',
     err_generic: '出了点小问题，再试一次吧。',
+    // Store config load failure (shelf pickers / store map)
+    config_load_error: '店铺信息加载失败。',
+    config_retry: '重试',
   },
 } as const;
 

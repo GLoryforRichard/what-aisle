@@ -100,7 +100,8 @@ async function cropThumbnails(file: File, products: DetectedProduct[]): Promise<
 export default function SnapScreen({ go, onSubmit }: SnapScreenProps) {
   const { t } = useTranslation();
   // Per-store shelf taxonomy (data-driven — no hardcoded shelf list).
-  const shelves = useStoreConfig()?.shelves ?? [];
+  const { config, error: configError, retry: retryConfig } = useStoreConfig();
+  const shelves = config?.shelves ?? [];
   // Empty until the worker picks a shelf — this gates the whole capture area,
   // so the shelf picker is the first (and only) thing they see on arrival.
   const [location, setLocation] = useState('');
@@ -328,6 +329,22 @@ export default function SnapScreen({ go, onSubmit }: SnapScreenProps) {
         )}
         <Icon name="map" size={20} style={{ color: location ? C.textMuted : C.primary, flexShrink: 0 }} />
       </button>
+
+      {configError && !config && (
+        <div style={{
+          marginTop: 8, padding: '10px 12px',
+          background: '#fee', border: '1px solid #fcc', borderRadius: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          fontSize: 13.5, color: '#933', fontWeight: 600,
+        }}>
+          <span>{t('config_load_error')}</span>
+          <button onClick={retryConfig} style={{
+            background: C.white, border: `1px solid ${C.border}`, borderRadius: 8,
+            padding: '4px 12px', fontSize: 12.5, fontWeight: 700, color: C.text,
+            cursor: 'pointer', fontFamily: FONT, flexShrink: 0,
+          }}>{t('config_retry')}</button>
+        </div>
+      )}
 
       {showMap && (
         <StoreMapModal

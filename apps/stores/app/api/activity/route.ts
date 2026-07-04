@@ -13,7 +13,7 @@ interface ActivityItem {
 }
 
 export async function GET(req: NextRequest) {
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const storeId = gate.store.slug;
   try {

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 /** Raw DB inspector for the CURRENT store only — every read is tenant-scoped.
  *  (Searches come from `search_history`; legacy `search_logs` is retired.) */
 export async function GET(req: NextRequest) {
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const storeId = gate.store.slug;
   try {

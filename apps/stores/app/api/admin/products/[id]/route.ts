@@ -33,7 +33,7 @@ export async function PATCH(
 ) {
   // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
   // passcode cookie auth, PRD F-10).
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const storeId = gate.store.slug;
   const locked = adminWriteGuard();
@@ -92,7 +92,7 @@ export async function DELETE(
 ) {
   // TODO(task-3): replace adminWriteGuard with requireStoreAdmin (per-store
   // passcode cookie auth, PRD F-10).
-  const gate = await requireStore(req);
+  const gate = await requireStore(req, { audience: 'staff' });
   if (!gate.ok) return gate.response;
   const storeId = gate.store.slug;
   const locked = adminWriteGuard();

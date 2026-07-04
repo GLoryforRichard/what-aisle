@@ -10,9 +10,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { getDb } from './mongodb';
+import { validateSlug } from './slug';
 import { Store, StoreStatus, STORES_COLLECTION } from './types';
 
 export const STORE_SLUG_HEADER = 'x-store-slug';
+
+/**
+ * Defense-in-depth: the proxy strips client-supplied `x-store-slug` on every
+ * matched path, but we still re-validate here (format + reserved-name check)
+ * so a header that somehow bypassed the proxy can never reach the database
+ * as an arbitrary string.
+ */
+function slugFromHeader(raw: string | null): string | null {
+  if (!raw) return null;
+  const v = validateSlug(raw);
+  return v.ok ? v.slug : null;
+}
 
 const CACHE_TTL_MS = 60_000;
 
@@ -56,8 +69,20 @@ export function storeStatusAllows(status: StoreStatus, audience: StoreAudience):
   return false;
 }
 
-/** Statuses under which the store's APIs respond (staff prep + live traffic). */
-const API_ALLOWED_STATUSES: readonly StoreStatus[] = ['live', 'awaiting_video', 'building'];
+/**
+ * API audience — mirrors the page-level split above:
+ *  - 'public' (customer-facing routes): 'live' only, so pre-launch stores
+ *    never serve data to anonymous visitors;
+ *  - 'staff' (workspace/admin routes): also 'awaiting_video' and 'building'
+ *    so the founder can prep the store while provisioning (PRD F-7).
+ * suspended / pending_payment / canceled are blocked for both.
+ */
+export type ApiAudience = 'public' | 'staff';
+
+const API_ALLOWED_STATUSES: Record<ApiAudience, readonly StoreStatus[]> = {
+  public: ['live'],
+  staff: ['live', 'awaiting_video', 'building'],
+};
 
 export type RequireStoreResult =
   | { ok: true; store: Store }
@@ -69,24 +94,25 @@ function jsonError(status: number, error: string): NextResponse {
 
 /**
  * Resolve the tenant for an API route from the proxy-injected header.
- * 404s when the header is absent or no store matches; 403s when the store
- * exists but is not in an active status. Usage:
+ * 404s when the header is absent/invalid or no store matches; 403s when the
+ * store exists but is not in a status the audience may talk to. Usage:
  *
- *   const gate = await requireStore(req);
+ *   const gate = await requireStore(req);                        // public route
+ *   const gate = await requireStore(req, { audience: 'staff' }); // staff route
  *   if (!gate.ok) return gate.response;
  *   const store = gate.store;
  */
 export async function requireStore(
   req: NextRequest,
-  opts?: { allow?: readonly StoreStatus[] }
+  opts?: { audience?: ApiAudience }
 ): Promise<RequireStoreResult> {
-  const slug = req.headers.get(STORE_SLUG_HEADER)?.trim().toLowerCase();
+  const slug = slugFromHeader(req.headers.get(STORE_SLUG_HEADER));
   if (!slug) return { ok: false, response: jsonError(404, 'store not found') };
 
   const store = await getStoreBySlug(slug);
   if (!store) return { ok: false, response: jsonError(404, 'store not found') };
 
-  const allow = opts?.allow ?? API_ALLOWED_STATUSES;
+  const allow = API_ALLOWED_STATUSES[opts?.audience ?? 'public'];
   if (!allow.includes(store.status)) {
     return { ok: false, response: jsonError(403, 'store is not active') };
   }
@@ -99,7 +125,7 @@ export async function requireStore(
  */
 export async function getStoreOrNull(): Promise<Store | null> {
   const h = await headers();
-  const slug = h.get(STORE_SLUG_HEADER)?.trim().toLowerCase();
+  const slug = slugFromHeader(h.get(STORE_SLUG_HEADER));
   if (!slug) return null;
   return getStoreBySlug(slug);
 }

@@ -51,9 +51,17 @@ export default async function proxy(req: NextRequest) {
   requestHeaders.delete('x-store-slug');
 
   // /api/internal/* does its own bearer auth (and Caddy 403s it on the public
-  // vhosts) — pass through untouched. Next internals are excluded by the
-  // matcher, this is just belt-and-braces.
+  // vhosts) — pass through untouched. _next/static + _next/image are excluded
+  // by the matcher; other Next internals land here.
   if (pathname.startsWith('/api/internal') || pathname.startsWith('/_next')) {
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // Static-looking assets (dotted final segment: /favicon.ico, /robots.txt…)
+  // need no tenant resolution. They are matched ON PURPOSE — previously the
+  // matcher skipped any dotted path, which left the client-supplied
+  // x-store-slug unstripped there — and pass through with the header removed.
+  if (/\.[^/]+$/.test(pathname)) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -92,8 +100,10 @@ export default async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next internals and static assets (paths with a dot).
-  // NOTE: /api IS matched on purpose — API routes need x-store-slug too;
-  // /api/internal is passed through inside the handler above.
-  matcher: ['/((?!_next/static|_next/image|.*\\..*).*)'],
+  // Everything except Next's static asset endpoints. Dotted paths (assets)
+  // ARE matched — the handler early-returns for them after stripping
+  // x-store-slug, so no request that can reach a route handler carries a
+  // client-supplied slug. NOTE: /api IS matched on purpose — API routes need
+  // x-store-slug too; /api/internal is passed through inside the handler.
+  matcher: ['/((?!_next/static|_next/image).*)'],
 };

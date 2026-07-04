@@ -10,10 +10,10 @@
  */
 
 import type { ReactElement } from 'react';
+import { notFound } from 'next/navigation';
 import { getStoreOrNull, storeStatusAllows, StoreAudience } from '@/lib/store-context';
 import type { Store } from '@/lib/types';
 import {
-  TenantNotFound,
   TenantPending,
   TenantSuspended,
   TenantClosed,
@@ -25,7 +25,8 @@ export type StorePageGate =
 
 export async function gateStorePage(audience: StoreAudience): Promise<StorePageGate> {
   const store = await getStoreOrNull();
-  if (!store) return { store: null, blocked: <TenantNotFound /> };
+  // Unknown store → real HTTP 404 (app/not-found.tsx renders TenantNotFound).
+  if (!store) notFound();
 
   switch (store.status) {
     case 'canceled':

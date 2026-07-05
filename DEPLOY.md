@@ -13,7 +13,7 @@
 ## 架构速览（来自 PRD §6.1 / 6.5，已与源码核对）
 
 ```
-Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
+Spaceship DNS（域名原地，不迁 NS）
    A  whataisle.com    → VM_IP
    A  *.whataisle.com   → VM_IP
                 │
@@ -21,7 +21,7 @@ Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
    │ GCP VM: whataisle-vm (e2-standard-2, 8GB) │
    │ region northamerica-northeast2, Ubuntu 22 │
    │                                            │
-   │ Caddy（xcaddy 定制，含 caddy-dns/cloudflare）│
+   │ Caddy（xcaddy 定制，含 caddy-dns/spaceship）│
    │   whataisle.com, www → :3002  Portal      │  ← pnpm, Postgres/Neon
    │   superadmin.…  basic_auth → :3001 Stores  │  ← npm,  MongoDB Atlas
    │   *.whataisle.com → :3001  Stores         │
@@ -47,12 +47,11 @@ Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
 开始前请确认你**已拥有或将创建**以下账户/资产。逐项打勾。
 
 - [ ] `【需要用户】` **GCP 项目 + 结算/免费积分**（新项目，专供 What-Aisle；不要复用 wherebear 的 `acoustic-cargo-498500-q3`，PRD §6.2-#8 明确用新 VM）。
-- [ ] `【需要用户】` **域名 `whataisle.com`**（PRD 说已注册）——需要能在注册商处**改 NS 指向 Cloudflare**。
-- [ ] `【需要用户】` **Cloudflare 账户**（把域名 NS 迁入，用于 DNS 解析 + DNS-01 泛域名证书）。
+- [ ] `【需要用户】` **域名 `whataisle.com`**（已在 **Spaceship** 注册）——DNS 留在 Spaceship，无需迁 NS；生成一对 Spaceship API Key/Secret 供泛域名证书用。
 - [ ] `【需要用户】` **MongoDB Atlas 账户**（创建**全新集群**，独立于 wherebear 生产集群）。
 - [ ] `【需要用户】` **Neon 账户**（Postgres，Portal 用）。
 - [ ] `【需要用户】` **Stripe 账户**（已有；需在其中创建 2 个 Price + 1 个 Webhook 端点）。
-- [ ] `【需要用户】` **Cloudflare R2**（一个 bucket，存店主布局视频）。
+- [ ] `【需要用户】` **Cloudflare R2**（一个 bucket 存店主布局视频；只需**免费 Cloudflare 账号开通 R2 存储**，与域名 DNS 无关。也可换其他 S3 兼容存储）。
 - [ ] `【需要用户】` **Resend 账户**（API key + 验证发信域名）。
 - [ ] `【需要用户】` **Google Cloud 项目**用于 Vertex AI / Gemini（可与上面 GCP 项目同一个；VM 用附加 SA 走 ADC）。
 - [ ] 本机已装 `gcloud` CLI 并 `gcloud auth login`（用**新项目**对应的账户）。
@@ -131,17 +130,20 @@ Cloudflare DNS（NS 迁入，仅解析不代理 / DNS-only）
 
 ## B. 外部服务配置（全部 `【需要用户】`）
 
-### B.1 Cloudflare（DNS + 泛域名证书 token）
+### B.1 Spaceship（DNS + 泛域名证书凭据）— 不需要 Cloudflare
 
-1. `【需要用户】` 在 Cloudflare 添加站点 `whataisle.com`，按提示到**域名注册商**把 NS 改为 Cloudflare 给的两个 NS，等待生效（`dig NS whataisle.com` 出现 Cloudflare NS 即成）。
-2. `【需要用户】` 待 VM 有静态 IP 后（见 §C），在 Cloudflare DNS 添加（**Proxy status = DNS only / 灰云**，泛域名证书走 DNS-01，不能开橙云代理）：
+域名在 Spaceship 买的，**DNS 就留在 Spaceship**，无需迁 NS。Spaceship 有官方 Caddy DNS 插件（`caddy-dns/spaceship`），可用 Spaceship API 走 DNS-01 签一张 `*.whataisle.com` 泛域名证书。
+
+1. `【需要用户】` 待 VM 有静态 IP 后（见 §C），在 Spaceship 域名后台 → **Advanced DNS / DNS Records** 添加：
    - `A  @    → VM_IP`（`whataisle.com`）
    - `A  *    → VM_IP`（`*.whataisle.com`，覆盖所有店铺子域 + `superadmin`）
    - （可选）`A  www → VM_IP`
-3. `【需要用户】` 创建 **scoped API Token**（My Profile → API Tokens → Create Token → Custom）：
-   - 权限：**Zone → DNS → Edit**
-   - Zone Resources：Include → Specific zone → `whataisle.com`
-   - 复制 token → 即 **`CF_API_TOKEN`**（Caddy DNS-01 用，见 §D）。
+2. `【需要用户】` 生成 **Spaceship API 凭据**（Spaceship 账户 → **API Manager / API Access** → Create API Key）：
+   - 得到 **API Key** 和 **API Secret** 两个值。
+   - 分别填入 systemd 环境变量 **`SPACESHIP_API_KEY`** / **`SPACESHIP_API_SECRET`**（Caddy DNS-01 用，见 §D）。
+   - 注意 Spaceship DNS 写入限流：300 次/域名/300 秒——正常签发/续期远低于此。
+
+> 若不想开 Spaceship API，可改用 Caddy **on-demand TLS**（每个子域名首次访问时用 HTTP-01 单独签证书，无需 DNS API）——只需上面第 1 步的 `*` A 记录即可，但首访有一次握手延迟且受 Let's Encrypt 速率限制。默认推荐上面的 DNS-01 泛域名方案。
 
 ### B.2 Neon（Postgres）+ 迁移
 
@@ -259,7 +261,7 @@ npm run seed:stores     # = tsx scripts/seed-stores.ts
 ### B.6 Resend（发信）
 
 1. `【需要用户】` Resend → API Keys 建 key → `RESEND_API_KEY`。
-2. `【需要用户】` Domains → 添加并**验证发信域名**（加 Resend 给的 DNS 记录到 Cloudflare），否则邮件进垃圾箱/被拒。
+2. `【需要用户】` Domains → 添加并**验证发信域名**（把 Resend 给的 DNS 记录加到 **Spaceship DNS**），否则邮件进垃圾箱/被拒。
 
 ### B.7 Google Cloud（Vertex AI + VM 附加 SA）
 
@@ -283,7 +285,7 @@ export REGION=northamerica-northeast2
 
 gcloud config set project "$PROJECT"
 
-# 1) 预留静态 IP（先建 IP，拿到后填 Cloudflare A 记录 + Atlas allowlist）
+# 1) 预留静态 IP（先建 IP，拿到后填 Spaceship A 记录 + Atlas allowlist）
 gcloud compute addresses create whataisle-ip --region="$REGION"
 gcloud compute addresses describe whataisle-ip --region="$REGION" --format='get(address)'
 #   ↑ 记下这个 IP → 即 VM_IP
@@ -308,7 +310,7 @@ gcloud compute firewall-rules create whataisle-allow-web \
   --source-ranges=0.0.0.0/0
 ```
 
-`【需要用户】` 拿到 VM_IP 后：回填 **B.1 Cloudflare A 记录**（`@` 与 `*`）+ **B.3 Atlas Network Access allowlist**。
+`【需要用户】` 拿到 VM_IP 后：回填 **B.1 Spaceship A 记录**（`@` 与 `*`）+ **B.3 Atlas Network Access allowlist**。
 
 SSH 进 VM 装运行时：
 
@@ -327,22 +329,22 @@ sudo corepack prepare pnpm@latest --activate
 node -v && npm -v && pnpm -v
 sudo npm i -g pm2                     # 进程管理
 
-# Caddy 见 §D（xcaddy 定制构建，含 cloudflare DNS 插件）
+# Caddy 见 §D（xcaddy 定制构建，含 spaceship DNS 插件）
 ```
 
 ---
 
 ## D. Caddy（泛域名证书 + 内部封禁 + superadmin basic_auth）
 
-标准 apt 版 Caddy **不含** cloudflare DNS 插件，泛域名 DNS-01 必须**定制构建**。
+标准 apt 版 Caddy **不含** spaceship DNS 插件，泛域名 DNS-01 必须**定制构建**。`caddy-dns/spaceship` 需要 **Caddy v2.10.0+**。
 
 **方式一：download-with-plugin（最省事）** — Caddy 官方下载器可直接带插件：
 
 ```bash
-# 一行拿到含 caddy-dns/cloudflare 的二进制
-curl -o caddy "https://caddyserver.com/api/download?os=linux&arch=amd64&p=github.com/caddy-dns/cloudflare"
+# 一行拿到含 caddy-dns/spaceship 的二进制
+curl -o caddy "https://caddyserver.com/api/download?os=linux&arch=amd64&p=github.com/caddy-dns/spaceship"
 chmod +x caddy && sudo mv caddy /usr/bin/caddy
-caddy version && caddy list-modules | grep cloudflare   # 应看到 dns.providers.cloudflare
+caddy version && caddy list-modules | grep spaceship   # 应看到 dns.providers.spaceship
 ```
 
 **方式二：xcaddy 自构建**（需要 Go）：
@@ -350,7 +352,7 @@ caddy version && caddy list-modules | grep cloudflare   # 应看到 dns.provider
 ```bash
 sudo apt-get install -y golang-go
 go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
-~/go/bin/xcaddy build --with github.com/caddy-dns/cloudflare
+~/go/bin/xcaddy build --with github.com/caddy-dns/spaceship
 sudo mv caddy /usr/bin/caddy
 ```
 
@@ -363,16 +365,18 @@ sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-http
 sudo mkdir -p /etc/caddy
 ```
 
-**`CF_API_TOKEN` 注入**（systemd 环境文件，Caddyfile 用 `{env.CF_API_TOKEN}` 读取）：
+**Spaceship API 凭据注入**（systemd 环境文件，Caddyfile 用 `{env.SPACESHIP_API_KEY}` / `{env.SPACESHIP_API_SECRET}` 读取）：
 
 ```bash
 sudo tee /etc/systemd/system/caddy.service.d/override.conf >/dev/null <<'EOF'
 [Service]
-Environment=CF_API_TOKEN=REPLACE_WITH_CLOUDFLARE_DNS_TOKEN
+Environment=SPACESHIP_API_KEY=REPLACE_WITH_SPACESHIP_API_KEY
+Environment=SPACESHIP_API_SECRET=REPLACE_WITH_SPACESHIP_API_SECRET
 EOF
 sudo systemctl daemon-reload
 ```
-> `【需要用户】` 把 `REPLACE_WITH_CLOUDFLARE_DNS_TOKEN` 换成 B.1 的 token。
+> `【需要用户】` 把两个 `REPLACE_WITH_...` 换成 B.1 生成的 Spaceship API Key / Secret。
+> 精确的插件指令名以官方模块页为准：https://caddyserver.com/docs/modules/dns.providers.spaceship
 
 **生成 superadmin basic_auth 的 bcrypt 哈希**（Caddyfile 里放哈希，不放明文）：
 
@@ -397,7 +401,10 @@ whataisle.com, www.whataisle.com {
 
 superadmin.whataisle.com {
   tls {
-    dns cloudflare {env.CF_API_TOKEN}
+    dns spaceship {
+      api_key {env.SPACESHIP_API_KEY}
+      api_secret {env.SPACESHIP_API_SECRET}
+    }
   }
   basic_auth {
     founder <bcrypt-hash>
@@ -408,7 +415,10 @@ superadmin.whataisle.com {
 
 *.whataisle.com {
   tls {
-    dns cloudflare {env.CF_API_TOKEN}
+    dns spaceship {
+      api_key {env.SPACESHIP_API_KEY}
+      api_secret {env.SPACESHIP_API_SECRET}
+    }
   }
   import block_internal
   reverse_proxy 127.0.0.1:3001
@@ -594,7 +604,7 @@ stripe trigger charge.refunded
 ### Go-Live cutover
 
 1. `【需要用户】` 冒烟全绿后，把 Stripe 从 **test → live**：换 `.env.local` 里 `STRIPE_SECRET_KEY`、两个 `NEXT_PUBLIC_STRIPE_PRICE_WHATAISLE_*` 为 live Price、`STRIPE_WEBHOOK_SECRET` 为 live 端点的 secret；`pnpm build && pm2 restart wa-portal`。
-2. `【需要用户】` 确认 Cloudflare `@` 与 `*` A 记录指向 VM_IP 且**灰云（DNS only）**；`dig store-a.whataisle.com` 解析到 VM_IP。
+2. `【需要用户】` 确认 Spaceship DNS 的 `@` 与 `*` A 记录指向 VM_IP；`dig store-a.whataisle.com` 解析到 VM_IP。
 3. 确认 `journalctl -u caddy` 已签发 `*.whataisle.com` 证书（无 rate-limit 报错）。
 4. `pm2 save` 固化；确认 `pm2 startup` 与 Caddy `systemctl enable` 均已开机自启。
 
